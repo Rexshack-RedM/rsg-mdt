@@ -5,9 +5,10 @@ import { ProfileModal } from '../components/ProfileModal';
 
 interface CitizenLookupProps {
   onIssueWarrant?: (citizenid: string, name: string) => void;
+  onViewReport?: (reportId: number) => void;
 }
 
-export function CitizenLookup({ onIssueWarrant }: CitizenLookupProps) {
+export function CitizenLookup({ onIssueWarrant, onViewReport }: CitizenLookupProps) {
   const [query, setQuery] = useState('');
   const [allCitizens, setAllCitizens] = useState<Citizen[]>([]);
   const [selected, setSelected] = useState<Citizen | null>(null);
@@ -148,6 +149,7 @@ export function CitizenLookup({ onIssueWarrant }: CitizenLookupProps) {
             const data = await fetchNui<Citizen>('getCitizen', { citizenid: selected.citizenid }, selected);
             setSelected(data);
           }}
+          onViewReport={onViewReport}
         />
       )}
     </div>

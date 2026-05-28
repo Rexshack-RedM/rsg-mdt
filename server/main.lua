@@ -549,7 +549,6 @@ lib.callback.register('rsg-mdt:server:getReports', function(source)
     local results = MySQL.query.await('SELECT * FROM mdt_reports ORDER BY created_at DESC')
     if not results then return {} end
     
-    -- Decode JSON fields for each report
     for _, report in ipairs(results) do
         if type(report.officers) == 'string' then
             report.officers = json.decode(report.officers) or {}
@@ -559,6 +558,27 @@ lib.callback.register('rsg-mdt:server:getReports', function(source)
         end
         if type(report.evidence) == 'string' then
             report.evidence = json.decode(report.evidence) or {}
+        end
+        
+        local linkedCharges = MySQL.query.await([[
+            SELECT 
+                ca.charge_id,
+                ic.charge_name,
+                ic.citizen_name,
+                ic.fine,
+                ic.jailtime,
+                ic.officer
+            FROM mdt_charge_attachments ca
+            INNER JOIN mdt_issued_charges ic ON ca.charge_id = ic.id
+            WHERE ca.report_id = ?
+            ORDER BY ca.attached_at DESC
+            LIMIT 1
+        ]], { report.id })
+        
+        if linkedCharges and linkedCharges[1] then
+            report.linkedCharge = linkedCharges[1]
+        else
+            report.linkedCharge = nil
         end
     end
     

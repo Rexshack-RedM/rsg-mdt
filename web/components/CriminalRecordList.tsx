@@ -127,8 +127,17 @@ function ChargeTimer({ dueDate, fineStatus }: { dueDate: string | null | undefin
 }
 
 export function CriminalRecordList({ charges, loading, onChargeClick, onRefresh }: CriminalRecordListProps) {
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+  const formatDate = (dateString: unknown) => {
+    if (!dateString) return 'Unknown';
+    let date: Date;
+    if (typeof dateString === 'string') {
+      date = new Date(dateString);
+    } else if (typeof dateString === 'number') {
+      date = new Date(dateString * (dateString < 10000000000 ? 1000 : 1));
+    } else {
+      return 'Unknown';
+    }
+    if (isNaN(date.getTime())) return 'Unknown';
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',

@@ -4,9 +4,12 @@ import type { Report, ReportComment, IncidentType } from '../types';
 
 interface ReportsProps {
   onRefresh?: () => void;
+  viewingReportId?: number | null;
+  onViewCharge?: (chargeId: number) => void;
+  onReportViewed?: () => void;
 }
 
-export function Reports({ onRefresh }: ReportsProps) {
+export function Reports({ onRefresh, viewingReportId, onViewCharge, onReportViewed }: ReportsProps) {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -16,6 +19,17 @@ export function Reports({ onRefresh }: ReportsProps) {
   const [newComment, setNewComment] = useState('');
   const [incidentTypes, setIncidentTypes] = useState<IncidentType[]>([]);
   const [form, setForm] = useState({ title: '', type: 'incident', description: '', officers: '', suspects: '', evidence: '' });
+
+  useEffect(() => {
+    if (viewingReportId && reports.length > 0) {
+      const report = reports.find(r => r.id === viewingReportId);
+      if (report) {
+        setSelectedReport(report);
+        loadComments(report.id);
+        onReportViewed?.();
+      }
+    }
+  }, [viewingReportId, reports]);
 
   const loadIncidentTypes = async () => {
     const types = await fetchNui<IncidentType[]>('getIncidentTypes', {}, [
@@ -363,6 +377,34 @@ export function Reports({ onRefresh }: ReportsProps) {
                   <p className="text-zinc-600 text-xs">Report ID</p>
                   <p className="text-zinc-400 text-sm font-mono">#{selectedReport.id}</p>
                 </div>
+                {selectedReport.linkedCharge && (
+                  <div className="bg-amber-950/30 border border-amber-800/50 rounded-lg p-3">
+                    <p className="text-amber-400 text-xs uppercase tracking-wider mb-2 flex items-center gap-1">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                      </svg>
+                      Linked Charge
+                    </p>
+                    <p className="text-white font-medium text-sm">{selectedReport.linkedCharge.charge_name}</p>
+                    <p className="text-zinc-400 text-xs mt-1">{selectedReport.linkedCharge.citizen_name}</p>
+                    <div className="flex gap-3 mt-2 text-xs">
+                      {selectedReport.linkedCharge.fine > 0 && (
+                        <span className="text-amber-400">${selectedReport.linkedCharge.fine}</span>
+                      )}
+                      {selectedReport.linkedCharge.jailtime > 0 && (
+                        <span className="text-red-400">{selectedReport.linkedCharge.jailtime} mo</span>
+                      )}
+                    </div>
+                    {onViewCharge && (
+                      <button
+                        onClick={() => onViewCharge(selectedReport.linkedCharge!.charge_id)}
+                        className="mt-3 w-full bg-amber-600 hover:bg-amber-500 text-white py-2 rounded text-sm transition-colors"
+                      >
+                        View Charge Details
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="mt-6 pt-6 border-t border-zinc-800">
@@ -393,11 +435,19 @@ export function Reports({ onRefresh }: ReportsProps) {
               >
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className={`px-2 py-0.5 rounded text-xs uppercase border ${getTypeColor(report.type)}`}>
                         {getTypeLabel(report.type)}
                       </span>
                       <h3 className="text-white font-bold group-hover:text-amber-400 transition-colors">{report.title}</h3>
+                      {report.linkedCharge && (
+                        <span className="bg-amber-950/50 text-amber-400 border border-amber-800 px-2 py-0.5 rounded text-xs flex items-center gap-1">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                          </svg>
+                          Linked Charge
+                        </span>
+                      )}
                     </div>
                     <p className="text-zinc-500 text-sm mt-1 line-clamp-1">{report.description}</p>
                     <div className="flex gap-4 mt-2 text-xs text-zinc-600">

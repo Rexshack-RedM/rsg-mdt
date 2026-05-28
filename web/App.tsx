@@ -40,6 +40,8 @@ export default function App() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [windowConfig, setWindowConfig] = useState<WindowConfig>({});
   const [warrantPrefill, setWarrantPrefill] = useState<WarrantPrefill | null>(null);
+  const [viewingReportId, setViewingReportId] = useState<number | null>(null);
+  const [viewingChargeId, setViewingChargeId] = useState<number | null>(null);
 
   useNuiEvent<Officer & { permissions?: Permissions; window?: WindowConfig }>('open', (data) => {
     setOfficer(data);
@@ -106,14 +108,41 @@ export default function App() {
         <div className="flex-1 overflow-auto p-6" style={{ background: 'linear-gradient(180deg, #111113 0%, #0a0a0b 100%)' }}>
           <div className="max-w-5xl mx-auto">
             {currentPage === 'dashboard' && <Dashboard stats={stats} officer={officer} onPageChange={setCurrentPage} />}
-            {currentPage === 'citizens' && <CitizenLookup onIssueWarrant={(citizenid, name) => {
-              setWarrantPrefill({ citizenid, name });
-              setCurrentPage('warrants');
-            }} />}
-            {currentPage === 'records' && <CriminalRecords />}
+            {currentPage === 'citizens' && (
+              <CitizenLookup 
+                onIssueWarrant={(citizenid, name) => {
+                  setWarrantPrefill({ citizenid, name });
+                  setCurrentPage('warrants');
+                }}
+                onViewReport={(reportId) => {
+                  setViewingReportId(reportId);
+                  setCurrentPage('reports');
+                }}
+              />
+            )}
+            {currentPage === 'records' && (
+              <CriminalRecords 
+                viewingChargeId={viewingChargeId}
+                onViewReport={(reportId) => {
+                  setViewingReportId(reportId);
+                  setCurrentPage('reports');
+                }}
+                onChargeViewed={() => setViewingChargeId(null)}
+              />
+            )}
             {currentPage === 'warrants' && <Warrants onRefresh={refreshStats} prefill={warrantPrefill} onClearPrefill={() => setWarrantPrefill(null)} />}
             {currentPage === 'bolos' && <Bolos onRefresh={refreshStats} />}
-            {currentPage === 'reports' && <Reports onRefresh={refreshStats} />}
+            {currentPage === 'reports' && (
+              <Reports 
+                onRefresh={refreshStats}
+                viewingReportId={viewingReportId}
+                onViewCharge={(chargeId) => {
+                  setViewingChargeId(chargeId);
+                  setCurrentPage('records');
+                }}
+                onReportViewed={() => setViewingReportId(null)}
+              />
+            )}
             {currentPage === 'staff' && permissions?.isAdmin && <StaffManagement />}
           </div>
         </div>

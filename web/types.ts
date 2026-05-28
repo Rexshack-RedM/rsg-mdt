@@ -48,6 +48,15 @@ export interface BOLO {
   date: string;
 }
 
+export interface LinkedCharge {
+  charge_id: number;
+  charge_name: string;
+  citizen_name: string;
+  fine: number;
+  jailtime: number;
+  officer: string;
+}
+
 export interface Report {
   id: number;
   title: string;
@@ -59,6 +68,7 @@ export interface Report {
   officer: string;
   officer_cid?: string;
   created_at: string;
+  linkedCharge?: LinkedCharge;
 }
 
 export interface ReportComment {
@@ -252,4 +262,33 @@ export interface Fine {
   officer_name: string;
   officer_cid: string | null;
   paid_to_officer: string | null;
+}
+
+export interface ReportForAttachment {
+  id: number;
+  title: string;
+  type: string;
+  officer: string;
+  created_at: string;
+}
+
+export interface ChargeAttachment {
+  attachment_id: number;
+  charge_id: number;
+  report_id: number;
+  attached_by: string;
+  attached_by_name: string;
+  attached_at: string;
+  report_title: string;
+  report_type: string;
+  report_officer: string;
+  report_created_at: string;
+}
+
+export interface AttachReportsResult {
+  success: boolean;
+  message: string;
+  attachedCount?: number;
+  alreadyAttached?: number;
+  notFound?: number;
 }

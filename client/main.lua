@@ -413,3 +413,28 @@ RegisterNuiCallback('getChargeDetails', function(data, cb)
     local charge = lib.callback.await('rsg-mdt:server:getChargeDetails', false, data.id)
     cb(charge or {})
 end)
+
+RegisterNuiCallback('getAvailableReportsForAttachment', function(data, cb)
+    local reports = lib.callback.await('rsg-mdt:server:getAvailableReportsForAttachment', false, data and data.query)
+    cb(reports or {})
+end)
+
+RegisterNuiCallback('attachReportsToCharge', function(data, cb)
+    local result = lib.callback.await('rsg-mdt:server:attachReportsToCharge', false, data)
+    cb(result or { success = false, message = 'Unknown error' })
+end)
+
+RegisterNuiCallback('removeAttachmentFromCharge', function(data, cb)
+    local result = lib.callback.await('rsg-mdt:server:removeAttachmentFromCharge', false, data)
+    cb(result or { success = false, message = 'Unknown error' })
+end)
+
+RegisterNuiCallback('getChargeAttachments', function(data, cb)
+    local attachments = lib.callback.await('rsg-mdt:server:getChargeAttachments', false, data.chargeId)
+    cb(attachments or {})
+end)
+
+RegisterNuiCallback('getReportsWithCharges', function(data, cb)
+    local charges = lib.callback.await('rsg-mdt:server:getReportsWithCharges', false, data.reportId)
+    cb(charges or {})
+end)

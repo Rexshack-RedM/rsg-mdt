@@ -116,7 +116,13 @@ function RecordList({ charges, loading, onChargeClick }: { charges: IssuedCharge
   );
 }
 
-export function CriminalRecords() {
+interface CriminalRecordsProps {
+  viewingChargeId?: number | null;
+  onViewReport?: (reportId: number) => void;
+  onChargeViewed?: () => void;
+}
+
+export function CriminalRecords({ viewingChargeId, onViewReport, onChargeViewed }: CriminalRecordsProps) {
   const [charges, setCharges] = useState<IssuedCharge[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -132,6 +138,17 @@ export function CriminalRecords() {
   useEffect(() => {
     fetchCharges();
   }, [fetchCharges]);
+
+  useEffect(() => {
+    if (viewingChargeId && !selectedCharge) {
+      fetchNui<IssuedCharge>('getChargeDetails', { id: viewingChargeId }, undefined).then((details) => {
+        if (details) {
+          setSelectedCharge(details);
+          onChargeViewed?.();
+        }
+      });
+    }
+  }, [viewingChargeId, selectedCharge, onChargeViewed]);
 
   const filteredCharges = useMemo(() => {
     if (!searchQuery.trim()) return charges;
@@ -193,6 +210,7 @@ export function CriminalRecords() {
         <ChargeDetailModal
           charge={selectedCharge}
           onClose={() => setSelectedCharge(null)}
+          onViewReport={onViewReport}
         />
       )}
     </div>

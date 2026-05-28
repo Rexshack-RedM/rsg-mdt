@@ -170,3 +170,18 @@ INSERT IGNORE INTO `mdt_charge_templates` (`name`, `description`, `fine`, `jailt
     ('Bank Robbery', 'Robbery of a banking institution', 500, 48, 'felony'),
     ('Resisting Arrest', 'Resisting or fleeing from law enforcement', 50, 1, 'misdemeanor'),
     ('Obstruction of Justice', 'Interfering with law enforcement duties', 40, 0, 'misdemeanor');
+
+-- Charge-Report Attachments Table (many-to-many relationship)
+CREATE TABLE IF NOT EXISTS `mdt_charge_attachments` (
+    `id` INT AUTO_INCREMENT PRIMARY KEY,
+    `charge_id` INT NOT NULL,
+    `report_id` INT NOT NULL,
+    `attached_by` VARCHAR(50) NOT NULL,
+    `attached_by_name` VARCHAR(100) NOT NULL,
+    `attached_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY `unique_charge_report` (`charge_id`, `report_id`),
+    INDEX `idx_charge_id` (`charge_id`),
+    INDEX `idx_report_id` (`report_id`),
+    FOREIGN KEY (`charge_id`) REFERENCES `mdt_issued_charges`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`report_id`) REFERENCES `mdt_reports`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

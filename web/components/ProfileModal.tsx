@@ -11,9 +11,10 @@ interface ProfileModalProps {
   onClose: () => void;
   onIssueWarrant?: (citizenid: string, name: string) => void;
   onChargesIssued?: () => void;
+  onViewReport?: (reportId: number) => void;
 }
 
-export function ProfileModal({ citizen, onClose, onIssueWarrant, onChargesIssued }: ProfileModalProps) {
+export function ProfileModal({ citizen, onClose, onIssueWarrant, onChargesIssued, onViewReport }: ProfileModalProps) {
   const [editingPicture, setEditingPicture] = useState(false);
   const [pictureUrl, setPictureUrl] = useState('');
   const [savingPicture, setSavingPicture] = useState(false);
@@ -245,6 +246,7 @@ export function ProfileModal({ citizen, onClose, onIssueWarrant, onChargesIssued
         <ChargeDetailModal
           charge={selectedCharge}
           onClose={() => setSelectedCharge(null)}
+          onViewReport={onViewReport}
         />
       )}
     </div>

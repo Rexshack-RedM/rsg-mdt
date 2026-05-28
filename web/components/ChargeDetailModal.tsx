@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
 import { fetchNui, useNuiEvent } from '../hooks/useNui';
+import { AttachmentsList } from './AttachmentsList';
+import { ReportSelector } from './ReportSelector';
+import { Toast, type ToastType } from './Toast';
 import type { IssuedCharge, Fine } from '../types';
 
 interface ChargeDetailModalProps {
   charge: IssuedCharge | null;
   onClose: () => void;
   onChargeUpdated?: (charge: IssuedCharge) => void;
+  onViewReport?: (reportId: number) => void;
 }
 
 interface TimeRemaining {
@@ -76,11 +80,14 @@ function formatTimeRemaining(dueDate: string | null | undefined | number): TimeR
   }
 }
 
-export function ChargeDetailModal({ charge, onClose, onChargeUpdated }: ChargeDetailModalProps) {
+export function ChargeDetailModal({ charge, onClose, onChargeUpdated, onViewReport }: ChargeDetailModalProps) {
   const [markingPaid, setMarkingPaid] = useState(false);
   const [showConfirmPaid, setShowConfirmPaid] = useState(false);
   const [localCharge, setLocalCharge] = useState<IssuedCharge | null>(charge);
   const [timeInfo, setTimeInfo] = useState<TimeRemaining>({ text: '', isOverdue: false, seconds: 0 });
+  const [showReportSelector, setShowReportSelector] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
   useEffect(() => {
     setLocalCharge(charge);
@@ -158,6 +165,23 @@ export function ChargeDetailModal({ charge, onClose, onChargeUpdated }: ChargeDe
     }
     
     setMarkingPaid(false);
+  };
+
+  const handleAttachReports = async (reportIds: number[]) => {
+    if (reportIds.length === 0 || !localCharge) return;
+    
+    const result = await fetchNui<{ success: boolean; message: string; attachedCount?: number }>(
+      'attachReportsToCharge',
+      { chargeId: localCharge.id, reportIds },
+      { success: true, message: 'Reports attached', attachedCount: reportIds.length }
+    );
+    
+    if (result.success) {
+      setToast({ message: result.message, type: 'success' });
+      setRefreshKey(k => k + 1);
+    } else {
+      setToast({ message: result.message, type: 'error' });
+    }
   };
 
   const category = getCategoryStyle();
@@ -286,6 +310,27 @@ export function ChargeDetailModal({ charge, onClose, onChargeUpdated }: ChargeDe
             </div>
           </div>
 
+          <div className="border-t border-zinc-800 pt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h5 className="text-zinc-400 text-sm font-bold uppercase tracking-wider">Attached Reports</h5>
+              <button
+                onClick={() => setShowReportSelector(true)}
+                className="flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded px-2.5 py-1 text-zinc-300 text-xs transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Attach Report
+              </button>
+            </div>
+            <AttachmentsList
+              key={refreshKey}
+              chargeId={localCharge.id}
+              onAttachmentChange={() => setRefreshKey(k => k + 1)}
+              onViewReport={onViewReport}
+            />
+          </div>
+
           <div className="border-t border-zinc-800 pt-4">
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2 text-zinc-500">
@@ -354,6 +399,20 @@ export function ChargeDetailModal({ charge, onClose, onChargeUpdated }: ChargeDe
           )}
         </div>
       </div>
+
+      <ReportSelector
+        isOpen={showReportSelector}
+        onClose={() => setShowReportSelector(false)}
+        onConfirm={handleAttachReports}
+      />
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }
