@@ -438,3 +438,369 @@ RegisterNuiCallback('getReportsWithCharges', function(data, cb)
     local charges = lib.callback.await('rsg-mdt:server:getReportsWithCharges', false, data.reportId)
     cb(charges or {})
 end)
+
+RegisterNuiCallback('getJailConfig', function(_, cb)
+    local config = lib.callback.await('rsg-mdt:server:getJailConfig')
+    cb(config or {})
+end)
+
+local jailInProgress = false
+
+RegisterNuiCallback('startJailProcess', function(data, cb)
+    if jailInProgress then
+        cb({ success = false, message = 'Jail process already in progress' })
+        return
+    end
+    
+    local config = lib.callback.await('rsg-mdt:server:getJailConfig')
+    if not config or not config.enabled then
+        cb({ success = false, message = 'Jail system is disabled' })
+        return
+    end
+    
+    local targetPlayerId = data.targetPlayerId
+    if not targetPlayerId then
+        cb({ success = false, message = 'Target player not found (offline?)' })
+        return
+    end
+    
+    local playerPed = PlayerPedId()
+    local playerCoords = GetEntityCoords(playerPed)
+    local targetPed = GetPlayerPed(GetPlayerFromServerId(targetPlayerId))
+    
+    if not targetPed or targetPed == 0 then
+        cb({ success = false, message = 'Target player not found nearby' })
+        return
+    end
+    
+    local targetCoords = GetEntityCoords(targetPed)
+    local distToTarget = #(playerCoords - targetCoords)
+    
+    if distToTarget > config.maxDistance then
+        cb({ success = false, message = 'You must be closer to the suspect to jail them' })
+        return
+    end
+    
+    cb({ success = true, delaySeconds = config.delaySeconds })
+    
+    jailInProgress = true
+    local targetPlayerId = data.targetPlayerId
+    
+    SendNUIMessage(json.encode({ 
+        action = 'jailStatus', 
+        data = { status = 'processing', remaining = config.delaySeconds } 
+    }))
+    
+    local delayMs = config.delaySeconds * 1000
+    local startTime = GetGameTimer()
+    
+    while jailInProgress do
+        local elapsed = GetGameTimer() - startTime
+        local remaining = math.ceil((delayMs - elapsed) / 1000)
+        
+        if remaining <= 0 then
+            break
+        end
+        
+        local currentPed = PlayerPedId()
+        local currentCoords = GetEntityCoords(currentPed)
+        local distToTarget = targetPlayerId and #(currentCoords - GetEntityCoords(GetPlayerPed(GetPlayerFromServerId(targetPlayerId)))) or 999
+        
+        if distToTarget > config.maxDistance then
+            SendNUIMessage(json.encode({ 
+                action = 'jailStatus', 
+                data = { status = 'cancelled', message = 'Target moved out of range' } 
+            }))
+            jailInProgress = false
+            return
+        end
+        
+        SendNUIMessage(json.encode({ 
+            action = 'jailStatus', 
+            data = { status = 'processing', remaining = remaining } 
+        }))
+        
+        Wait(500)
+    end
+    
+    if not jailInProgress then
+        return
+    end
+    
+    local result = lib.callback.await('rsg-mdt:server:jailPlayer', false, {
+        citizenid = data.citizenid,
+        minutes = data.minutes,
+        reason = data.reason
+    })
+    
+    SendNUIMessage(json.encode({ 
+        action = 'jailStatus', 
+        data = { 
+            status = result and result.success and 'completed' or 'failed',
+            message = result and result.message or 'Unknown error'
+        } 
+    }))
+    
+    jailInProgress = false
+end)
+
+RegisterNuiCallback('commitCharges', function(data, cb)
+    if jailInProgress then
+        cb({ success = false, message = 'Jail process already in progress' })
+        return
+    end
+    
+    local config = lib.callback.await('rsg-mdt:server:getJailConfig')
+    if not config or not config.enabled then
+        cb({ success = false, message = 'Jail system is disabled' })
+        return
+    end
+    
+    local targetPlayerId = data.targetPlayerId
+    if not targetPlayerId then
+        cb({ success = false, message = 'Target player not found (offline?)' })
+        return
+    end
+    
+    local playerPed = PlayerPedId()
+    local playerCoords = GetEntityCoords(playerPed)
+    local targetPed = GetPlayerPed(GetPlayerFromServerId(targetPlayerId))
+    
+    if not targetPed or targetPed == 0 then
+        cb({ success = false, message = 'Target player not found nearby' })
+        return
+    end
+    
+    local targetCoords = GetEntityCoords(targetPed)
+    local distToTarget = #(playerCoords - targetCoords)
+    
+    if distToTarget > config.maxDistance then
+        cb({ success = false, message = 'You must be closer to the suspect to jail them' })
+        return
+    end
+    
+    cb({ success = true, delaySeconds = config.delaySeconds })
+    
+    jailInProgress = true
+    local targetPlayerId = data.targetPlayerId
+    
+    SendNUIMessage(json.encode({ 
+        action = 'jailStatus', 
+        data = { status = 'processing', remaining = config.delaySeconds } 
+    }))
+    
+    local delayMs = config.delaySeconds * 1000
+    local startTime = GetGameTimer()
+    
+    while jailInProgress do
+        local elapsed = GetGameTimer() - startTime
+        local remaining = math.ceil((delayMs - elapsed) / 1000)
+        
+        if remaining <= 0 then
+            break
+        end
+        
+        local currentPed = PlayerPedId()
+        local currentCoords = GetEntityCoords(currentPed)
+        local targetPed = targetPlayerId and GetPlayerPed(GetPlayerFromServerId(targetPlayerId)) or nil
+        local distToTarget = targetPed and #(currentCoords - GetEntityCoords(targetPed)) or 999
+        
+        if distToTarget > config.maxDistance then
+            SendNUIMessage(json.encode({ 
+                action = 'jailStatus', 
+                data = { status = 'cancelled', message = 'Target moved out of range' } 
+            }))
+            jailInProgress = false
+            return
+        end
+        
+        SendNUIMessage(json.encode({ 
+            action = 'jailStatus', 
+            data = { status = 'processing', remaining = remaining } 
+        }))
+        
+        Wait(500)
+    end
+    
+    if not jailInProgress then
+        return
+    end
+    
+    local result = lib.callback.await('rsg-mdt:server:commitCharges', false, data)
+    
+    if result and result.success then
+        SendNUIMessage(json.encode({ 
+            action = 'jailStatus', 
+            data = { 
+                status = 'completed',
+                message = result.message,
+                totalJailtime = result.totalJailtime,
+                totalServed = result.totalServed
+            } 
+        }))
+        
+        SendNUIMessage(json.encode({
+            action = 'chargesUpdated',
+            data = {
+                citizenid = data.citizenid,
+                totalJailtime = result.totalJailtime,
+                totalServed = result.totalServed
+            }
+        }))
+    else
+        SendNUIMessage(json.encode({ 
+            action = 'jailStatus', 
+            data = { 
+                status = 'failed',
+                message = result and result.message or 'Unknown error'
+            } 
+        }))
+    end
+    
+    jailInProgress = false
+end)
+
+RegisterNuiCallback('getCitizenJailTotals', function(data, cb)
+    local totals = lib.callback.await('rsg-mdt:server:getCitizenJailTotals', false, data.citizenid)
+    cb(totals or { totalJailtime = 0, totalServed = 0, outstanding = 0, charges = {} })
+end)
+
+RegisterNuiCallback('submitCharges', function(data, cb)
+    local hasJailTime = data.totalJailtime and data.totalJailtime > 0
+    local targetPlayerId = data.targetPlayerId
+    
+    if hasJailTime and targetPlayerId then
+        if jailInProgress then
+            cb({ success = false, message = 'Jail process already in progress', requiresDelay = true })
+            return
+        end
+        
+        local config = lib.callback.await('rsg-mdt:server:getJailConfig')
+        if not config or not config.enabled then
+            cb({ success = false, message = 'Jail system is disabled', requiresDelay = true })
+            return
+        end
+        
+        local playerPed = PlayerPedId()
+        local playerCoords = GetEntityCoords(playerPed)
+        local targetPed = GetPlayerPed(GetPlayerFromServerId(targetPlayerId))
+        
+        if not targetPed or targetPed == 0 then
+            cb({ success = false, message = 'Target player not found nearby', requiresDelay = true })
+            return
+        end
+        
+        local targetCoords = GetEntityCoords(targetPed)
+        local distToTarget = #(playerCoords - targetCoords)
+        
+        if distToTarget > config.maxDistance then
+            cb({ success = false, message = 'You must be closer to the suspect to jail them', requiresDelay = true })
+            return
+        end
+        
+        cb({ success = true, delaySeconds = config.delaySeconds, requiresDelay = true })
+        
+        jailInProgress = true
+        
+        SendNUIMessage(json.encode({ 
+            action = 'jailStatus', 
+            data = { status = 'processing', remaining = config.delaySeconds } 
+        }))
+        
+        local delayMs = config.delaySeconds * 1000
+        local startTime = GetGameTimer()
+        
+        while jailInProgress do
+            local elapsed = GetGameTimer() - startTime
+            local remaining = math.ceil((delayMs - elapsed) / 1000)
+            
+            if remaining <= 0 then
+                break
+            end
+            
+            local currentPed = PlayerPedId()
+            local currentCoords = GetEntityCoords(currentPed)
+            local checkPed = targetPlayerId and GetPlayerPed(GetPlayerFromServerId(targetPlayerId)) or nil
+            local checkDist = checkPed and #(currentCoords - GetEntityCoords(checkPed)) or 999
+            
+            if checkDist > config.maxDistance then
+                SendNUIMessage(json.encode({ 
+                    action = 'jailStatus', 
+                    data = { status = 'cancelled', message = 'Target moved out of range' } 
+                }))
+                jailInProgress = false
+                return
+            end
+            
+            SendNUIMessage(json.encode({ 
+                action = 'jailStatus', 
+                data = { status = 'processing', remaining = remaining } 
+            }))
+            
+            Wait(500)
+        end
+        
+        if not jailInProgress then
+            return
+        end
+        
+        local result = lib.callback.await('rsg-mdt:server:submitCharges', false, data)
+        
+        if result and result.success then
+            SendNUIMessage(json.encode({ 
+                action = 'jailStatus', 
+                data = { 
+                    status = 'completed',
+                    message = result.message,
+                    totalJailtime = result.totalJailtime,
+                    totalServed = result.totalServed,
+                    jailed = result.jailed
+                } 
+            }))
+            
+            SendNUIMessage(json.encode({
+                action = 'chargesUpdated',
+                data = {
+                    citizenid = data.citizenid,
+                    totalJailtime = result.totalJailtime,
+                    totalServed = result.totalServed
+                }
+            }))
+        else
+            SendNUIMessage(json.encode({ 
+                action = 'jailStatus', 
+                data = { 
+                    status = 'failed',
+                    message = result and result.message or 'Unknown error'
+                } 
+            }))
+        end
+        
+        jailInProgress = false
+    else
+        cb({ success = true, requiresDelay = false })
+        
+        local result = lib.callback.await('rsg-mdt:server:submitCharges', false, data)
+        
+        if result and result.success then
+            SendNUIMessage(json.encode({ 
+                action = 'jailStatus', 
+                data = { 
+                    status = 'completed',
+                    message = result.message,
+                    totalJailtime = result.totalJailtime,
+                    totalServed = result.totalServed,
+                    jailed = result.jailed
+                } 
+            }))
+        else
+            SendNUIMessage(json.encode({ 
+                action = 'jailStatus', 
+                data = { 
+                    status = 'failed',
+                    message = result and result.message or 'Unknown error'
+                } 
+            }))
+        end
+    end
+end)

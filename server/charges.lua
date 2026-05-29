@@ -30,14 +30,25 @@ local function initializeChargesDatabase()
             charge_description TEXT,
             fine INT DEFAULT 0,
             jailtime INT DEFAULT 0,
+            time_served INT DEFAULT 0,
+            is_served TINYINT(1) DEFAULT 0,
             officer VARCHAR(100) NOT NULL,
             officer_cid VARCHAR(50),
             report_id INT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            served_at TIMESTAMP NULL,
             INDEX idx_citizenid (citizenid),
             INDEX idx_officer (officer),
+            INDEX idx_is_served (is_served),
             FOREIGN KEY (charge_template_id) REFERENCES mdt_charge_templates(id) ON DELETE SET NULL
         )
+    ]])
+
+    MySQL.query.await([[
+        ALTER TABLE mdt_issued_charges 
+        ADD COLUMN IF NOT EXISTS time_served INT DEFAULT 0 AFTER jailtime,
+        ADD COLUMN IF NOT EXISTS is_served TINYINT(1) DEFAULT 0 AFTER time_served,
+        ADD COLUMN IF NOT EXISTS served_at TIMESTAMP NULL AFTER created_at
     ]])
 
     local existingTemplates = MySQL.query.await("SELECT COUNT(*) as count FROM mdt_charge_templates")
@@ -378,15 +389,15 @@ lib.callback.register('rsg-mdt:server:issueCharges', function(source, data)
         end
     end
     
-        if #issuedCharges > 0 then
-            local chargeIds = {}
-            for _, issued in ipairs(issuedCharges) do
-                table.insert(chargeIds, issued.id)
-            end
-            
-            if totalFine > 0 then
-                exports['rsg-mdt']:createOrUpdateFine(citizenid, citizenName, chargeIds, totalFine, officerName, officerCid)
-            end
+    if #issuedCharges > 0 then
+        local chargeIds = {}
+        for _, issued in ipairs(issuedCharges) do
+            table.insert(chargeIds, issued.id)
+        end
+        
+        if totalFine > 0 then
+            exports['rsg-mdt']:createOrUpdateFine(citizenid, citizenName, chargeIds, totalFine, officerName, officerCid)
+        end
         
         logChargeAction(source, 'charges_issued', 'citizen', citizenid, citizenName, {
             charges = issuedCharges,
@@ -415,11 +426,184 @@ lib.callback.register('rsg-mdt:server:issueCharges', function(source, data)
             message = #issuedCharges .. ' charge(s) issued to ' .. citizenName,
             issuedCharges = issuedCharges,
             totalFine = totalFine,
-            totalJailtime = totalJailtime
+            totalJailtime = totalJailtime,
+            requiresJail = totalJailtime > 0 and targetPlayer ~= nil
         }
     end
     
     return { success = false, message = 'Failed to issue charges' }
+end)
+
+lib.callback.register('rsg-mdt:server:submitCharges', function(source, data)
+    if not hasCreateRecordsPermission(source) then
+        return { success = false, message = 'You do not have permission to issue charges' }
+    end
+    if not waitForChargesDatabase() then
+        return { success = false, message = 'Database not ready' }
+    end
+    
+    local citizenid = data.citizenid
+    local targetPlayerId = data.targetPlayerId
+    local charges = data.charges
+    local attachedReportIds = data.attachedReportIds or {}
+    
+    if not citizenid or not charges or #charges == 0 then
+        return { success = false, message = 'Citizen ID and at least one charge are required' }
+    end
+    
+    local targetPlayer = targetPlayerId and RSGCore.Functions.GetPlayer(tonumber(targetPlayerId)) or nil
+    local targetPlayerByCid = RSGCore.Functions.GetPlayerByCitizenId(citizenid)
+    local citizenName
+    
+    if targetPlayer then
+        citizenName = targetPlayer.PlayerData.charinfo.firstname .. ' ' .. targetPlayer.PlayerData.charinfo.lastname
+    elseif targetPlayerByCid then
+        citizenName = targetPlayerByCid.PlayerData.charinfo.firstname .. ' ' .. targetPlayerByCid.PlayerData.charinfo.lastname
+        targetPlayer = targetPlayerByCid
+    else
+        local result = MySQL.query.await("SELECT charinfo FROM players WHERE citizenid = ?", { citizenid })
+        if result and result[1] then
+            local charinfo = json.decode(result[1].charinfo)
+            citizenName = charinfo.firstname .. ' ' .. charinfo.lastname
+        else
+            return { success = false, message = 'Citizen not found' }
+        end
+    end
+    
+    local player = RSGCore.Functions.GetPlayer(source)
+    if not player then
+        return { success = false, message = 'Officer not found' }
+    end
+    
+    local officerName = player.PlayerData.charinfo.firstname .. ' ' .. player.PlayerData.charinfo.lastname
+    local officerCid = player.PlayerData.citizenid
+    
+    local totalFine = 0
+    local totalJailtime = 0
+    local issuedCharges = {}
+    local minutesPerMonth = Config.Jail.minutesPerMonth or 1
+    
+    for _, charge in ipairs(charges) do
+        local templateId = tonumber(charge.templateId)
+        local chargeName = charge.name
+        local chargeDescription = charge.description
+        local fine = tonumber(charge.fine) or 0
+        local jailtimeMonths = tonumber(charge.jailtime) or 0
+        
+        local insertId = MySQL.insert.await(
+            "INSERT INTO mdt_issued_charges (citizenid, citizen_name, charge_template_id, charge_name, charge_description, fine, jailtime, officer, officer_cid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            { citizenid, citizenName, templateId, chargeName, chargeDescription, fine, jailtimeMonths, officerName, officerCid }
+        )
+        
+        if insertId then
+            totalFine = totalFine + fine
+            totalJailtime = totalJailtime + jailtimeMonths
+            table.insert(issuedCharges, {
+                id = insertId,
+                name = chargeName,
+                fine = fine,
+                jailtime = jailtimeMonths
+            })
+        end
+    end
+    
+    if #issuedCharges == 0 then
+        return { success = false, message = 'Failed to issue charges' }
+    end
+    
+    local chargeIds = {}
+    for _, issued in ipairs(issuedCharges) do
+        table.insert(chargeIds, issued.id)
+    end
+    
+    if totalFine > 0 then
+        exports['rsg-mdt']:createOrUpdateFine(citizenid, citizenName, chargeIds, totalFine, officerName, officerCid)
+    end
+    
+    if #attachedReportIds > 0 and #chargeIds > 0 then
+        local firstChargeId = chargeIds[1]
+        for _, reportId in ipairs(attachedReportIds) do
+            MySQL.insert.await(
+                "INSERT INTO mdt_charge_attachments (charge_id, report_id, attached_by, attached_by_name) VALUES (?, ?, ?, ?)",
+                { firstChargeId, reportId, officerCid, officerName }
+            )
+        end
+    end
+    
+    local jailed = false
+    local jailMinutes = 0
+    
+    if totalJailtime > 0 and targetPlayer then
+        jailMinutes = totalJailtime * minutesPerMonth
+        
+        targetPlayer.Functions.SetMetaData('injail', jailMinutes)
+        local currentDate = os.date('*t')
+        if currentDate.day == 31 then currentDate.day = 30 end
+        targetPlayer.Functions.SetMetaData('criminalrecord', { ['hasRecord'] = true, ['date'] = currentDate })
+        
+        local targetSource = targetPlayer.PlayerData.source
+        TriggerClientEvent('rsg-lawman:client:sendtojail', targetSource, jailMinutes)
+        
+        MySQL.update.await(
+            "UPDATE mdt_issued_charges SET time_served = jailtime, is_served = 1 WHERE id IN (" .. table.concat(chargeIds, ",") .. ")"
+        )
+        
+        for _, issued in ipairs(issuedCharges) do
+            issued.time_served = issued.jailtime
+            issued.is_served = true
+        end
+        
+        jailed = true
+        
+        TriggerClientEvent('rsg-mdt:client:notify', targetSource, {
+            type = 'warning',
+            message = #issuedCharges .. ' charge(s) committed. Jail: ' .. jailMinutes .. ' minutes'
+        })
+    end
+    
+    local updatedTotals = MySQL.query.await(
+        "SELECT COALESCE(SUM(jailtime), 0) as total_jailtime, COALESCE(SUM(time_served), 0) as total_served FROM mdt_issued_charges WHERE citizenid = ?",
+        { citizenid }
+    )
+    local totalsData = updatedTotals and updatedTotals[1] or { total_jailtime = 0, total_served = 0 }
+    
+    logChargeAction(source, jailed and 'charges_committed' or 'charges_issued', 'citizen', citizenid, citizenName, {
+        charges = issuedCharges,
+        totalFine = totalFine,
+        totalJailtimeMonths = totalJailtime,
+        jailMinutes = jailMinutes,
+        minutesPerMonth = minutesPerMonth,
+        jailed = jailed
+    })
+    
+    broadcastToOfficers('rsg-mdt:client:chargesUpdated', { 
+        action = jailed and 'committed' or 'issued', 
+        citizenid = citizenid, 
+        citizenName = citizenName,
+        count = #issuedCharges,
+        jailMinutes = jailMinutes,
+        totalJailtime = tonumber(totalsData.total_jailtime) or 0,
+        totalServed = tonumber(totalsData.total_served) or 0
+    })
+    
+    local message
+    if jailed then
+        message = #issuedCharges .. ' charge(s) committed. ' .. citizenName .. ' sent to jail for ' .. jailMinutes .. ' minutes.'
+    else
+        message = #issuedCharges .. ' charge(s) issued to ' .. citizenName
+    end
+    
+    return {
+        success = true,
+        message = message,
+        issuedCharges = issuedCharges,
+        totalFine = totalFine,
+        totalJailtime = tonumber(totalsData.total_jailtime) or 0,
+        totalServed = tonumber(totalsData.total_served) or 0,
+        jailMinutes = jailMinutes,
+        minutesPerMonth = minutesPerMonth,
+        jailed = jailed
+    }
 end)
 
 lib.callback.register('rsg-mdt:server:getIssuedCharges', function(source, citizenid)
@@ -428,7 +612,7 @@ lib.callback.register('rsg-mdt:server:getIssuedCharges', function(source, citize
     if not citizenid then return {} end
     
     local charges = MySQL.query.await(
-        "SELECT * FROM mdt_issued_charges WHERE citizenid = ? ORDER BY created_at DESC",
+        "SELECT id, citizenid, citizen_name, charge_template_id, charge_name, charge_description, fine, jailtime, time_served, is_served, officer, officer_cid, report_id, created_at, served_at FROM mdt_issued_charges WHERE citizenid = ? ORDER BY created_at DESC",
         { citizenid }
     )
     
@@ -545,4 +729,223 @@ lib.callback.register('rsg-mdt:server:getChargeDetails', function(source, charge
     end
     
     return nil
+end)
+
+lib.callback.register('rsg-mdt:server:jailPlayer', function(source, data)
+    if not hasCreateRecordsPermission(source) then
+        return { success = false, message = 'You do not have permission to jail players' }
+    end
+    
+    local targetPlayer = RSGCore.Functions.GetPlayerByCitizenId(data.citizenid)
+    if not targetPlayer then
+        return { success = false, message = 'Player is not online' }
+    end
+    
+    local targetSource = targetPlayer.PlayerData.source
+    local minutes = tonumber(data.minutes) or 0
+    
+    if minutes <= 0 then
+        return { success = false, message = 'Invalid jail time' }
+    end
+    
+    targetPlayer.Functions.SetMetaData('injail', minutes)
+    local currentDate = os.date('*t')
+    if currentDate.day == 31 then currentDate.day = 30 end
+    targetPlayer.Functions.SetMetaData('criminalrecord', { ['hasRecord'] = true, ['date'] = currentDate })
+    TriggerClientEvent('rsg-lawman:client:sendtojail', targetSource, minutes)
+    
+    local officer = RSGCore.Functions.GetPlayer(source)
+    local officerName = officer and (officer.PlayerData.charinfo.firstname .. ' ' .. officer.PlayerData.charinfo.lastname) or 'Unknown'
+    
+    logChargeAction(source, 'player_jailed', 'citizen', data.citizenid, targetPlayer.PlayerData.charinfo.firstname .. ' ' .. targetPlayer.PlayerData.charinfo.lastname, {
+        minutes = minutes,
+        reason = data.reason
+    })
+    
+    return { success = true, message = 'Player sent to jail' }
+end)
+
+lib.callback.register('rsg-mdt:server:getJailConfig', function(source)
+    return {
+        delaySeconds = Config.Jail.delaySeconds,
+        maxDistance = Config.Jail.maxDistance,
+        jailCoords = Config.Jail.jailCoords,
+        jailHeading = Config.Jail.jailHeading,
+        enabled = Config.Jail.enabled,
+        minutesPerMonth = Config.Jail.minutesPerMonth,
+        maxJailDistance = Config.Jail.maxJailDistance
+    }
+end)
+
+lib.callback.register('rsg-mdt:server:getCitizenJailTotals', function(source, citizenid)
+    if not waitForChargesDatabase() then return { totalJailtime = 0, totalServed = 0, charges = {} } end
+    if not citizenid then return { totalJailtime = 0, totalServed = 0, charges = {} } end
+    
+    local charges = MySQL.query.await(
+        "SELECT id, charge_name, jailtime, time_served, is_served, created_at FROM mdt_issued_charges WHERE citizenid = ? ORDER BY created_at DESC",
+        { citizenid }
+    )
+    
+    local totalJailtime = 0
+    local totalServed = 0
+    local outstanding = 0
+    
+    for _, charge in ipairs(charges or {}) do
+        totalJailtime = totalJailtime + (charge.jailtime or 0)
+        totalServed = totalServed + (charge.time_served or 0)
+        if not charge.is_served then
+            outstanding = outstanding + ((charge.jailtime or 0) - (charge.time_served or 0))
+        end
+    end
+    
+    return {
+        totalJailtime = totalJailtime,
+        totalServed = totalServed,
+        outstanding = outstanding,
+        charges = charges or {}
+    }
+end)
+
+lib.callback.register('rsg-mdt:server:commitCharges', function(source, data)
+    if not hasCreateRecordsPermission(source) then
+        return { success = false, message = 'You do not have permission to issue charges' }
+    end
+    if not waitForChargesDatabase() then
+        return { success = false, message = 'Database not ready' }
+    end
+    
+    local citizenid = data.citizenid
+    local targetPlayerId = data.targetPlayerId
+    local charges = data.charges
+    local totalJailtimeMonths = tonumber(data.totalJailtime) or 0
+    local attachedReportIds = data.attachedReportIds or {}
+    
+    if not citizenid or not charges or #charges == 0 then
+        return { success = false, message = 'Citizen ID and at least one charge are required' }
+    end
+    
+    if not targetPlayerId then
+        return { success = false, message = 'Player is not online' }
+    end
+    
+    if totalJailtimeMonths <= 0 then
+        return { success = false, message = 'No jail time in selected charges' }
+    end
+    
+    local targetPlayer = RSGCore.Functions.GetPlayer(tonumber(targetPlayerId))
+    if not targetPlayer then
+        return { success = false, message = 'Player is not online' }
+    end
+    
+    local targetSource = targetPlayer.PlayerData.source
+    local citizenName = targetPlayer.PlayerData.charinfo.firstname .. ' ' .. targetPlayer.PlayerData.charinfo.lastname
+    
+    local player = RSGCore.Functions.GetPlayer(source)
+    if not player then
+        return { success = false, message = 'Officer not found' }
+    end
+    
+    local officerName = player.PlayerData.charinfo.firstname .. ' ' .. player.PlayerData.charinfo.lastname
+    local officerCid = player.PlayerData.citizenid
+    
+    local totalFine = 0
+    local issuedCharges = {}
+    local minutesPerMonth = Config.Jail.minutesPerMonth or 1
+    
+    for _, charge in ipairs(charges) do
+        local templateId = tonumber(charge.templateId)
+        local chargeName = charge.name
+        local chargeDescription = charge.description
+        local fine = tonumber(charge.fine) or 0
+        local jailtimeMonths = tonumber(charge.jailtime) or 0
+        
+        local insertId = MySQL.insert.await(
+            "INSERT INTO mdt_issued_charges (citizenid, citizen_name, charge_template_id, charge_name, charge_description, fine, jailtime, time_served, is_served, officer, officer_cid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
+            { citizenid, citizenName, templateId, chargeName, chargeDescription, fine, jailtimeMonths, jailtimeMonths, officerName, officerCid }
+        )
+        
+        if insertId then
+            totalFine = totalFine + fine
+            table.insert(issuedCharges, {
+                id = insertId,
+                name = chargeName,
+                fine = fine,
+                jailtime = jailtimeMonths,
+                time_served = jailtimeMonths,
+                is_served = true
+            })
+        end
+    end
+    
+    if #issuedCharges == 0 then
+        return { success = false, message = 'Failed to issue charges' }
+    end
+    
+    local chargeIds = {}
+    for _, issued in ipairs(issuedCharges) do
+        table.insert(chargeIds, issued.id)
+    end
+    
+    if totalFine > 0 then
+        exports['rsg-mdt']:createOrUpdateFine(citizenid, citizenName, chargeIds, totalFine, officerName, officerCid)
+    end
+    
+    if #attachedReportIds > 0 and #chargeIds > 0 then
+        local firstChargeId = chargeIds[1]
+        for _, reportId in ipairs(attachedReportIds) do
+            MySQL.insert.await(
+                "INSERT INTO mdt_charge_attachments (charge_id, report_id, attached_by, attached_by_name) VALUES (?, ?, ?, ?)",
+                { firstChargeId, reportId, officerCid, officerName }
+            )
+        end
+    end
+    
+    local jailMinutes = totalJailtimeMonths * minutesPerMonth
+    
+    targetPlayer.Functions.SetMetaData('injail', jailMinutes)
+    local currentDate = os.date('*t')
+    if currentDate.day == 31 then currentDate.day = 30 end
+    targetPlayer.Functions.SetMetaData('criminalrecord', { ['hasRecord'] = true, ['date'] = currentDate })
+    TriggerClientEvent('rsg-lawman:client:sendtojail', targetSource, jailMinutes)
+    
+    local updatedTotals = MySQL.query.await(
+        "SELECT COALESCE(SUM(jailtime), 0) as total_jailtime, COALESCE(SUM(time_served), 0) as total_served FROM mdt_issued_charges WHERE citizenid = ?",
+        { citizenid }
+    )
+    
+    local totalsData = updatedTotals and updatedTotals[1] or { total_jailtime = 0, total_served = 0 }
+    
+    logChargeAction(source, 'charges_committed', 'citizen', citizenid, citizenName, {
+        charges = issuedCharges,
+        totalFine = totalFine,
+        totalJailtimeMonths = totalJailtimeMonths,
+        jailMinutes = jailMinutes,
+        minutesPerMonth = minutesPerMonth
+    })
+    
+    TriggerClientEvent('rsg-mdt:client:notify', targetSource, {
+        type = 'warning',
+        message = #issuedCharges .. ' charge(s) committed. Fine: $' .. totalFine .. ', Jail: ' .. jailMinutes .. ' minutes'
+    })
+    
+    broadcastToOfficers('rsg-mdt:client:chargesUpdated', { 
+        action = 'committed', 
+        citizenid = citizenid, 
+        citizenName = citizenName,
+        count = #issuedCharges,
+        jailMinutes = jailMinutes,
+        totalJailtime = tonumber(totalsData.total_jailtime) or 0,
+        totalServed = tonumber(totalsData.total_served) or 0
+    })
+    
+    return {
+        success = true,
+        message = #issuedCharges .. ' charge(s) committed. ' .. citizenName .. ' sent to jail for ' .. jailMinutes .. ' minutes.',
+        issuedCharges = issuedCharges,
+        totalFine = totalFine,
+        totalJailtime = tonumber(totalsData.total_jailtime) or 0,
+        totalServed = tonumber(totalsData.total_served) or 0,
+        jailMinutes = jailMinutes,
+        minutesPerMonth = minutesPerMonth
+    }
 end)

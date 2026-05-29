@@ -353,7 +353,6 @@ lib.callback.register('rsg-mdt:server:getCitizen', function(source, citizenid)
 
     local citizen = nil
 
-    -- First check if player is online (get live data)
     local target = RSGCore.Functions.GetPlayerByCitizenId(citizenid)
     if target then
         local data = target.PlayerData
@@ -362,10 +361,10 @@ lib.callback.register('rsg-mdt:server:getCitizen', function(source, citizenid)
             charinfo = data.charinfo,
             job = data.job,
             money = data.money,
-            metadata = data.metadata
+            metadata = data.metadata,
+            playerId = data.source
         }
     else
-        -- Fall back to database for offline players
         local result = MySQL.query.await(
             'SELECT citizenid, charinfo, job, money, metadata FROM players WHERE citizenid = ?',
             { citizenid }

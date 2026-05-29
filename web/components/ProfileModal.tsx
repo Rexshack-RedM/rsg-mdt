@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { fetchNui, useNuiEvent } from '../hooks/useNui';
-import type { Citizen, IssuedCharge } from '../types';
+import type { Citizen, IssuedCharge, JailConfig, JailStatus } from '../types';
 import { IssueChargesModal } from './IssueChargesModal';
 import { CriminalRecordList } from './CriminalRecordList';
 import { ChargeDetailModal } from './ChargeDetailModal';
@@ -12,9 +12,10 @@ interface ProfileModalProps {
   onIssueWarrant?: (citizenid: string, name: string) => void;
   onChargesIssued?: () => void;
   onViewReport?: (reportId: number) => void;
+  targetPlayerId?: number;
 }
 
-export function ProfileModal({ citizen, onClose, onIssueWarrant, onChargesIssued, onViewReport }: ProfileModalProps) {
+export function ProfileModal({ citizen, onClose, onIssueWarrant, onChargesIssued, onViewReport, targetPlayerId }: ProfileModalProps) {
   const [editingPicture, setEditingPicture] = useState(false);
   const [pictureUrl, setPictureUrl] = useState('');
   const [savingPicture, setSavingPicture] = useState(false);
@@ -22,6 +23,9 @@ export function ProfileModal({ citizen, onClose, onIssueWarrant, onChargesIssued
   const [charges, setCharges] = useState<IssuedCharge[]>([]);
   const [loadingCharges, setLoadingCharges] = useState(true);
   const [selectedCharge, setSelectedCharge] = useState<IssuedCharge | null>(null);
+  const [jailMinutes, setJailMinutes] = useState(5);
+  const [jailStatus, setJailStatus] = useState<JailStatus>({ status: 'idle' });
+  const [jailConfig, setJailConfig] = useState<JailConfig | null>(null);
 
   const fetchCharges = useCallback(async () => {
     setLoadingCharges(true);
@@ -32,12 +36,29 @@ export function ProfileModal({ citizen, onClose, onIssueWarrant, onChargesIssued
 
   useEffect(() => {
     fetchCharges();
+    const loadJailConfig = async () => {
+      const config = await fetchNui<JailConfig>('getJailConfig', {}, {
+        delaySeconds: 5,
+        maxDistance: 10.0,
+        jailCoords: { x: 0, y: 0, z: 0 },
+        jailHeading: 0,
+        enabled: true,
+        minutesPerMonth: 1,
+        maxJailDistance: 100.0
+      });
+      setJailConfig(config);
+    };
+    loadJailConfig();
   }, [fetchCharges]);
 
   useNuiEvent<{ citizenid: string }>('chargesUpdated', (data) => {
     if (data && data.citizenid === citizen.citizenid) {
       fetchCharges();
     }
+  });
+
+  useNuiEvent<JailStatus>('jailStatus', (data) => {
+    setJailStatus(data);
   });
 
   useEffect(() => {
@@ -78,6 +99,24 @@ export function ProfileModal({ citizen, onClose, onIssueWarrant, onChargesIssued
     fetchCharges();
     onChargesIssued?.();
   };
+
+  const handleJailPlayer = async () => {
+    if (jailStatus.status === 'processing') return;
+    
+    setJailStatus({ status: 'processing', remaining: jailConfig?.delaySeconds || 5 });
+    
+    const result = await fetchNui<{ success: boolean; message: string; delaySeconds?: number }>('startJailProcess', {
+      citizenid: citizen.citizenid,
+      minutes: jailMinutes,
+      targetPlayerId: targetPlayerId
+    }, { success: true, message: 'Jail process started', delaySeconds: 5 });
+    
+    if (!result.success) {
+      setJailStatus({ status: 'failed', message: result.message });
+    }
+  };
+
+  const isJailProcessing = jailStatus.status === 'processing';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
@@ -169,30 +208,72 @@ export function ProfileModal({ citizen, onClose, onIssueWarrant, onChargesIssued
                   </h4>
                   <p className="text-amber-400 text-sm mt-1">{citizen.citizenid}</p>
                 </div>
-                <div className="flex items-center gap-3">
-                  {citizen.isWanted && (
-                    <span className="flex items-center gap-1.5 bg-red-600/20 text-red-400 border border-red-600/30 px-3 py-1.5 rounded-lg text-sm font-medium">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                      </svg>
-                      WANTED
-                    </span>
-                  )}
-                  {onIssueWarrant && !citizen.isWanted && (
-                    <button
-                      onClick={() => onIssueWarrant(citizen.citizenid, `${citizen.charinfo?.firstname} ${citizen.charinfo?.lastname}`)}
-                      className="bg-red-600 hover:bg-red-500 px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors"
-                    >
-                      Issue Warrant
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setShowChargeModal(true)}
-                    className="bg-amber-600 hover:bg-amber-500 px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors"
-                  >
-                    Issue Charges
-                  </button>
-                </div>
+<div className="flex items-center gap-3">
+                   {citizen.isWanted && (
+                     <span className="flex items-center gap-1.5 bg-red-600/20 text-red-400 border border-red-600/30 px-3 py-1.5 rounded-lg text-sm font-medium">
+                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                         <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                       </svg>
+                       WANTED
+                     </span>
+                   )}
+                   {onIssueWarrant && !citizen.isWanted && (
+                     <button
+                       onClick={() => onIssueWarrant(citizen.citizenid, `${citizen.charinfo?.firstname} ${citizen.charinfo?.lastname}`)}
+                       className="bg-red-600 hover:bg-red-500 px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors"
+                     >
+                       Issue Warrant
+                     </button>
+                   )}
+                   <button
+                     onClick={() => setShowChargeModal(true)}
+                     className="bg-amber-600 hover:bg-amber-500 px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors"
+                   >
+                     Issue Charges
+                   </button>
+                   {jailConfig?.enabled && targetPlayerId && (
+                     <div className="flex items-center gap-2">
+                       <input
+                         type="number"
+                         min={1}
+                         max={999}
+                         value={jailMinutes}
+                         onChange={(e) => setJailMinutes(Math.max(1, parseInt(e.target.value) || 1))}
+                         disabled={isJailProcessing}
+                         className="w-16 bg-zinc-800 border border-zinc-700 rounded px-2 py-2 text-sm text-white text-center focus:outline-none focus:border-amber-600 disabled:opacity-50"
+                       />
+                       <span className="text-zinc-400 text-sm">min</span>
+                       <div className="relative group">
+                         <button
+                           onClick={handleJailPlayer}
+                           disabled={isJailProcessing}
+                           className={`px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors flex items-center gap-2 ${
+                             isJailProcessing 
+                               ? 'bg-zinc-700 cursor-not-allowed' 
+                               : 'bg-orange-600 hover:bg-orange-500'
+                           }`}
+                         >
+                           {isJailProcessing ? (
+                             <>
+                               <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                               </svg>
+                               <span>{jailStatus.remaining}s</span>
+                             </>
+                           ) : (
+                             'Jail'
+                           )}
+                         </button>
+                         {isJailProcessing && (
+                           <div className="absolute bottom-full mb-2 right-0 bg-zinc-800 border border-zinc-700 rounded px-3 py-2 text-xs text-zinc-300 whitespace-nowrap">
+                             Processing... Stay within {jailConfig.maxDistance}m of target
+                           </div>
+                         )}
+                       </div>
+                     </div>
+                   )}
+                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-4">
@@ -239,6 +320,7 @@ export function ProfileModal({ citizen, onClose, onIssueWarrant, onChargesIssued
           citizenName={`${citizen.charinfo?.firstname} ${citizen.charinfo?.lastname}`}
           onClose={() => setShowChargeModal(false)}
           onIssued={handleChargesIssued}
+          targetPlayerId={targetPlayerId}
         />
       )}
 

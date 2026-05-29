@@ -127,25 +127,25 @@ function ChargeTimer({ dueDate, fineStatus }: { dueDate: string | null | undefin
 }
 
 export function CriminalRecordList({ charges, loading, onChargeClick, onRefresh }: CriminalRecordListProps) {
-  const formatDate = (dateString: unknown) => {
-    if (!dateString) return 'Unknown';
-    let date: Date;
-    if (typeof dateString === 'string') {
-      date = new Date(dateString);
-    } else if (typeof dateString === 'number') {
-      date = new Date(dateString * (dateString < 10000000000 ? 1000 : 1));
-    } else {
-      return 'Unknown';
-    }
-    if (isNaN(date.getTime())) return 'Unknown';
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+   const formatDate = (dateString: unknown) => {
+     if (!dateString) return 'Unknown';
+     let date: Date;
+     if (typeof dateString === 'string') {
+       date = new Date(dateString);
+     } else if (typeof dateString === 'number') {
+       date = new Date(dateString * (dateString < 10000000000 ? 1000 : 1));
+     } else {
+       return 'Unknown';
+     }
+     if (isNaN(date.getTime())) return 'Unknown';
+     return date.toLocaleDateString('en-US', {
+       year: 'numeric',
+       month: 'short',
+       day: 'numeric',
+       hour: '2-digit',
+       minute: '2-digit'
+     });
+   };
 
   const getCategoryColor = (category: string) => {
     switch (category?.toLowerCase()) {
@@ -183,6 +183,32 @@ export function CriminalRecordList({ charges, loading, onChargeClick, onRefresh 
     }
   };
 
+  const getJailTimeDisplay = (charge: IssuedCharge) => {
+    if (!charge.jailtime || charge.jailtime <= 0) return null;
+    
+    if (charge.is_served || (charge.time_served && charge.time_served >= charge.jailtime)) {
+      return (
+        <span className="flex items-center gap-1 text-green-400 text-xs font-medium">
+          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+          </svg>
+          {charge.jailtime} mo (served)
+        </span>
+      );
+    }
+    
+    const remaining = charge.jailtime - (charge.time_served || 0);
+    if (charge.time_served && charge.time_served > 0) {
+      return (
+        <span className="text-orange-400 text-xs font-medium">
+          {remaining} mo remaining ({charge.time_served} served)
+        </span>
+      );
+    }
+    
+    return <span className="text-red-400 text-xs font-medium">{charge.jailtime} mo</span>;
+  };
+
   if (loading) {
     return (
       <div className="bg-zinc-800/30 rounded-lg p-4">
@@ -209,6 +235,8 @@ export function CriminalRecordList({ charges, loading, onChargeClick, onRefresh 
 
   const totalFines = charges.reduce((sum, c) => sum + (c.fine || 0), 0);
   const totalJailtime = charges.reduce((sum, c) => sum + (c.jailtime || 0), 0);
+  const totalServed = charges.reduce((sum, c) => sum + (c.time_served || 0), 0);
+  const outstandingJailtime = totalJailtime - totalServed;
   const unpaidFines = charges.filter(c => c.fine > 0 && c.fine_status !== 'paid');
 
   return (
@@ -223,7 +251,15 @@ export function CriminalRecordList({ charges, loading, onChargeClick, onRefresh 
             <span className="text-red-400 font-medium">{unpaidFines.length} unpaid</span>
           )}
           {totalJailtime > 0 && (
-            <span className="text-red-400 font-medium">{totalJailtime} months total</span>
+            <div className="flex items-center gap-2">
+              <span className="text-red-400 font-medium">{totalJailtime} mo total</span>
+              {totalServed > 0 && (
+                <span className="text-green-400 font-medium">({totalServed} served)</span>
+              )}
+              {outstandingJailtime > 0 && (
+                <span className="text-orange-400 font-medium">{outstandingJailtime} mo outstanding</span>
+              )}
+            </div>
           )}
         </div>
         {onRefresh && (
@@ -253,6 +289,11 @@ export function CriminalRecordList({ charges, loading, onChargeClick, onRefresh 
                     {charge.category || 'Charge'}
                   </span>
                   {getStatusBadge(charge.fine_status, charge.fine)}
+                  {charge.is_served && charge.jailtime > 0 && (
+                    <span className="text-xs px-2 py-0.5 rounded border bg-green-400/10 text-green-400 border-green-400/30">
+                      Served
+                    </span>
+                  )}
                 </div>
                 {charge.charge_description && (
                   <p className="text-zinc-500 text-sm truncate">{charge.charge_description}</p>
@@ -280,9 +321,7 @@ export function CriminalRecordList({ charges, loading, onChargeClick, onRefresh 
                   <ChargeTimer dueDate={charge.due_date} fineStatus={charge.fine_status} />
                 </div>
               )}
-              {charge.jailtime > 0 && (
-                <span className="text-red-400 text-xs font-medium">{charge.jailtime} mo</span>
-              )}
+              {getJailTimeDisplay(charge)}
             </div>
           </button>
         ))}

@@ -1,14 +1,15 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { fetchNui } from '../hooks/useNui';
+import { fetchNui, useNuiEvent } from '../hooks/useNui';
 import { ReportSelector } from './ReportSelector';
 import { Toast, createToast, type ToastType } from './Toast';
-import type { ChargeTemplate, ReportForAttachment } from '../types';
+import type { ChargeTemplate, ReportForAttachment, JailConfig, JailStatus } from '../types';
 
 interface IssueChargesModalProps {
   citizenid: string;
   citizenName: string;
   onClose: () => void;
   onIssued?: () => void;
+  targetPlayerId?: number;
 }
 
 const categoryColors: Record<string, string> = {
@@ -17,7 +18,7 @@ const categoryColors: Record<string, string> = {
   infraction: 'bg-blue-950/50 text-blue-400 border-blue-800',
 };
 
-export function IssueChargesModal({ citizenid, citizenName, onClose, onIssued }: IssueChargesModalProps) {
+export function IssueChargesModal({ citizenid, citizenName, onClose, onIssued, targetPlayerId }: IssueChargesModalProps) {
   const [templates, setTemplates] = useState<ChargeTemplate[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
@@ -26,6 +27,8 @@ export function IssueChargesModal({ citizenid, citizenName, onClose, onIssued }:
   const [showReportSelector, setShowReportSelector] = useState(false);
   const [attachedReports, setAttachedReports] = useState<ReportForAttachment[]>([]);
   const [toast, setToast] = useState<{ id: string; message: string; type: ToastType } | null>(null);
+  const [jailConfig, setJailConfig] = useState<JailConfig | null>(null);
+  const [jailStatus, setJailStatus] = useState<JailStatus>({ status: 'idle' });
 
   useEffect(() => {
     const loadTemplates = async () => {
@@ -33,7 +36,29 @@ export function IssueChargesModal({ citizenid, citizenName, onClose, onIssued }:
       setTemplates(result);
     };
     loadTemplates();
+
+    const loadJailConfig = async () => {
+      const config = await fetchNui<JailConfig>('getJailConfig', {}, {
+        delaySeconds: 5,
+        maxDistance: 10.0,
+        jailCoords: { x: 0, y: 0, z: 0 },
+        jailHeading: 0,
+        enabled: true,
+        minutesPerMonth: 1,
+        maxJailDistance: 100.0
+      });
+      setJailConfig(config);
+    };
+    loadJailConfig();
   }, []);
+
+  useNuiEvent<JailStatus>('jailStatus', (data) => {
+    setJailStatus(data);
+    if (data.status === 'completed') {
+      onIssued?.();
+      onClose();
+    }
+  });
 
   const filteredTemplates = useMemo(() => {
     if (!searchQuery.trim()) return templates;
@@ -55,6 +80,9 @@ export function IssueChargesModal({ citizenid, citizenName, onClose, onIssued }:
       { fine: 0, jailtime: 0 }
     );
   }, [selectedCharges]);
+
+  const willJail = totals.jailtime > 0 && targetPlayerId && jailConfig?.enabled;
+  const isJailProcessing = jailStatus.status === 'processing';
 
   const toggleCharge = (id: number) => {
     const newSet = new Set(selectedIds);
@@ -101,49 +129,61 @@ export function IssueChargesModal({ citizenid, citizenName, onClose, onIssued }:
       return;
     }
 
+    if (totals.jailtime > 0 && !targetPlayerId) {
+      setError('Cannot issue jail time - player is offline. Remove jail charges or wait for player to come online.');
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
 
-    const charges = selectedCharges.map(c => ({
-      templateId: c.id,
-      name: c.name,
-      description: c.description || undefined,
-      fine: c.fine,
-      jailtime: c.jailtime,
-    }));
-
-    const result = await fetchNui<{ success: boolean; message: string; issuedCharges?: { id: number }[] }>(
-      'issueCharges',
-      { citizenid, charges },
-      { success: true, message: 'Charges issued', issuedCharges: [{ id: 1 }] }
-    );
-
-    if (result.success) {
-      if (attachedReports.length > 0 && result.issuedCharges && result.issuedCharges.length > 0) {
-        const chargeId = result.issuedCharges[0].id;
-        
-        const attachResult = await fetchNui<{ success: boolean; message: string; attachedCount?: number }>(
-          'attachReportsToCharge',
-          { chargeId, reportIds: attachedReports.map(r => r.id) },
-          { success: true, message: 'Reports attached', attachedCount: attachedReports.length }
-        );
-        
-        if (attachResult.success) {
-          showToast(`${result.message} with ${attachResult.attachedCount || attachedReports.length} attached report(s)`, 'success');
-        } else {
-          showToast(`${result.message} but failed to attach reports: ${attachResult.message}`, 'warning');
-        }
-      } else {
-        showToast(result.message, 'success');
-      }
-      
-      onIssued?.();
-      onClose();
-    } else {
-      setError(result.message || 'Failed to issue charges');
+    if (willJail) {
+      setJailStatus({ status: 'processing', remaining: jailConfig?.delaySeconds || 5 });
     }
 
-    setSubmitting(false);
+    const result = await fetchNui<{ success: boolean; message: string; jailed?: boolean; totalJailtime?: number }>(
+      'submitCharges',
+      {
+        citizenid,
+        targetPlayerId,
+        charges: selectedCharges.map(c => ({
+          templateId: c.id,
+          name: c.name,
+          description: c.description || undefined,
+          fine: c.fine,
+          jailtime: c.jailtime,
+        })),
+        totalJailtime: totals.jailtime,
+        attachedReportIds: attachedReports.map(r => r.id),
+      },
+      { success: true, message: 'Charges submitted', jailed: totals.jailtime > 0 }
+    );
+
+    if (!result.success) {
+      setError(result.message || 'Failed to submit charges');
+      setJailStatus({ status: 'failed', message: result.message });
+      setSubmitting(false);
+    }
+  };
+
+  const getSubmitButtonText = () => {
+    if (isJailProcessing && jailStatus.remaining) {
+      return `${jailStatus.remaining}s`;
+    }
+    if (willJail) {
+      return `Submit & Jail (${totals.jailtime}mo)`;
+    }
+    return 'Submit Charges';
+  };
+
+  const getSubmitButtonTooltip = () => {
+    if (totals.jailtime > 0 && !targetPlayerId) {
+      return 'Player is offline - cannot issue jail time';
+    }
+    if (willJail) {
+      return `Will jail ${citizenName} for ${totals.jailtime * (jailConfig?.minutesPerMonth || 1)} minutes`;
+    }
+    return null;
   };
 
   return (
@@ -160,6 +200,11 @@ export function IssueChargesModal({ citizenid, citizenName, onClose, onIssued }:
             </h3>
             <p className="text-zinc-400 text-sm mt-1">
               To: <span className="text-amber-400">{citizenName}</span>
+              {targetPlayerId ? (
+                <span className="ml-2 text-green-400">(Online)</span>
+              ) : (
+                <span className="ml-2 text-red-400">(Offline)</span>
+              )}
             </p>
           </div>
           <button onClick={onClose} className="text-zinc-400 hover:text-white transition-colors">
@@ -321,23 +366,60 @@ export function IssueChargesModal({ citizenid, citizenName, onClose, onIssued }:
                 </div>
               </div>
 
+              {totals.jailtime > 0 && !targetPlayerId && (
+                <div className="mb-3 bg-red-950/30 border border-red-800/50 rounded-lg px-4 py-2 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span className="text-red-400 text-sm">Cannot jail offline player. Remove jail charges to proceed.</span>
+                </div>
+              )}
+
               {error && (
                 <p className="text-red-400 text-sm mb-3 text-center">{error}</p>
+              )}
+
+              {isJailProcessing && (
+                <div className="mb-3 bg-orange-950/30 border border-orange-800/50 rounded-lg px-4 py-2 flex items-center justify-center gap-3">
+                  <svg className="w-5 h-5 animate-spin text-orange-400" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                  <span className="text-orange-400 font-medium">
+                    Processing... {jailStatus.remaining}s remaining (Stay within {jailConfig?.maxDistance}m)
+                  </span>
+                </div>
               )}
 
               <div className="flex gap-3">
                 <button
                   onClick={onClose}
-                  className="flex-1 bg-zinc-700 hover:bg-zinc-600 rounded-lg px-4 py-2.5 text-white font-medium transition-colors"
+                  disabled={isJailProcessing}
+                  className="flex-1 bg-zinc-700 hover:bg-zinc-600 disabled:opacity-50 rounded-lg px-4 py-2.5 text-white font-medium transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSubmit}
-                  disabled={submitting || selectedCharges.length === 0}
-                  className="flex-1 bg-amber-600 hover:bg-amber-500 disabled:bg-zinc-700 disabled:text-zinc-400 rounded-lg px-4 py-2.5 text-white font-medium transition-colors"
+                  disabled={submitting || selectedCharges.length === 0 || isJailProcessing || (totals.jailtime > 0 && !targetPlayerId)}
+                  title={getSubmitButtonTooltip() || undefined}
+                  className={`flex-1 rounded-lg px-4 py-2.5 text-white font-medium transition-colors flex items-center justify-center gap-2 disabled:bg-zinc-700 disabled:text-zinc-400 ${
+                    willJail 
+                      ? 'bg-orange-600 hover:bg-orange-500' 
+                      : 'bg-amber-600 hover:bg-amber-500'
+                  }`}
                 >
-                  {submitting ? 'Processing...' : `Issue ${selectedCharges.length} Charge${selectedCharges.length !== 1 ? 's' : ''}`}
+                  {isJailProcessing ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                      </svg>
+                      <span>{jailStatus.remaining}s</span>
+                    </>
+                  ) : (
+                    <span>{getSubmitButtonText()}</span>
+                  )}
                 </button>
               </div>
             </div>

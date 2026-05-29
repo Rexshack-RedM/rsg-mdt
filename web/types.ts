@@ -15,6 +15,7 @@ export interface Citizen {
   isWanted?: boolean;
   records?: CriminalRecord[];
   fines?: Fine[];
+  playerId?: number;
 }
 
 export interface CriminalRecord {
@@ -212,15 +213,32 @@ export interface IssuedCharge {
   charge_description: string | null;
   fine: number;
   jailtime: number;
+  time_served?: number;
+  is_served?: boolean;
   officer: string;
   officer_cid: string | null;
   report_id: number | null;
   created_at: string;
+  served_at?: string | null;
   category?: string;
   fine_id?: number | null;
   due_date?: string | null;
   fine_status?: 'unpaid' | 'paid' | 'overdue' | null;
   paid_at?: string | null;
+}
+
+export interface JailTotals {
+  totalJailtime: number;
+  totalServed: number;
+  outstanding: number;
+  charges: {
+    id: number;
+    charge_name: string;
+    jailtime: number;
+    time_served: number;
+    is_served: boolean;
+    created_at: string;
+  }[];
 }
 
 export interface ChargeFormData {
@@ -291,4 +309,23 @@ export interface AttachReportsResult {
   attachedCount?: number;
   alreadyAttached?: number;
   notFound?: number;
+}
+
+export interface JailConfig {
+  delaySeconds: number;
+  maxDistance: number;
+  jailCoords: { x: number; y: number; z: number };
+  jailHeading: number;
+  enabled: boolean;
+  minutesPerMonth: number;
+  maxJailDistance: number;
+}
+
+export interface JailStatus {
+  status: 'idle' | 'processing' | 'completed' | 'cancelled' | 'failed';
+  remaining?: number;
+  message?: string;
+  jailed?: boolean;
+  totalJailtime?: number;
+  totalServed?: number;
 }

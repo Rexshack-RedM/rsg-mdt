@@ -150,6 +150,7 @@ export function CitizenLookup({ onIssueWarrant, onViewReport }: CitizenLookupPro
             setSelected(data);
           }}
           onViewReport={onViewReport}
+          targetPlayerId={selected.playerId}
         />
       )}
     </div>

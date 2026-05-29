@@ -104,3 +104,12 @@ Config.Fines = {
         { name = 'Strawberry Sheriff', coords = vector3(-1805.19, -348.85, 164.20), heading = 255.00 },
     }
 }
+
+Config.Jail = {
+    enabled = true,
+    delaySeconds = 5,
+    maxDistance = 10.0,
+    jailCoords = vector3(2761.44, -1460.54, 46.54),
+    jailHeading = 90.0,
+    minutesPerMonth = 1
+}

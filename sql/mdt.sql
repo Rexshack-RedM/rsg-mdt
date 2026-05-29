@@ -145,12 +145,16 @@ CREATE TABLE IF NOT EXISTS `mdt_issued_charges` (
     `charge_description` TEXT,
     `fine` INT DEFAULT 0,
     `jailtime` INT DEFAULT 0,
+    `time_served` INT DEFAULT 0,
+    `is_served` TINYINT(1) DEFAULT 0,
     `officer` VARCHAR(100) NOT NULL,
     `officer_cid` VARCHAR(50),
     `report_id` INT,
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `served_at` TIMESTAMP NULL,
     INDEX `idx_citizenid` (`citizenid`),
     INDEX `idx_officer` (`officer`),
+    INDEX `idx_is_served` (`is_served`),
     FOREIGN KEY (`charge_template_id`) REFERENCES `mdt_charge_templates`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
