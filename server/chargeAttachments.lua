@@ -61,24 +61,24 @@ end)
 
 lib.callback.register('rsg-mdt:server:attachReportsToCharge', function(source, data)
     if not hasCreateRecordsPermission(source) then
-        return { success = false, message = 'You do not have permission to attach reports' }
+        return { success = false, message = locale('notification_attach_permission') }
     end
     
     local chargeId = tonumber(data.chargeId)
     local reportIds = data.reportIds
     
     if not chargeId or not reportIds or #reportIds == 0 then
-        return { success = false, message = 'Charge ID and at least one report ID are required' }
+        return { success = false, message = locale('notification_charge_report_required') }
     end
     
     local charge = MySQL.query.await("SELECT id FROM mdt_issued_charges WHERE id = ?", { chargeId })
     if not charge or not charge[1] then
-        return { success = false, message = 'Charge not found' }
+        return { success = false, message = locale('notification_charge_not_found_attach') }
     end
     
     local player = RSGCore.Functions.GetPlayer(source)
     if not player then
-        return { success = false, message = 'Player not found' }
+        return { success = false, message = locale('notification_player_not_found') }
     end
     
     local attachedBy = player.PlayerData.citizenid
@@ -121,17 +121,17 @@ lib.callback.register('rsg-mdt:server:attachReportsToCharge', function(source, d
     
     local message
     if attachedCount > 0 then
-        message = attachedCount .. ' report(s) attached successfully'
-        if alreadyAttached > 0 then
-            message = message .. ', ' .. alreadyAttached .. ' already attached'
-        end
-        if notFound > 0 then
-            message = message .. ', ' .. notFound .. ' not found'
+        if alreadyAttached > 0 and notFound > 0 then
+            message = locale('notification_attach_success_notfound', attachedCount, alreadyAttached, notFound)
+        elseif alreadyAttached > 0 then
+            message = locale('notification_attach_success_some', attachedCount, alreadyAttached)
+        else
+            message = locale('notification_attach_success', attachedCount)
         end
     elseif alreadyAttached > 0 then
-        message = 'All selected reports are already attached'
+        message = locale('notification_attach_already')
     else
-        message = 'No reports could be attached'
+        message = locale('notification_attach_none')
     end
     
     return {
@@ -145,14 +145,14 @@ end)
 
 lib.callback.register('rsg-mdt:server:removeAttachmentFromCharge', function(source, data)
     if not hasCreateRecordsPermission(source) then
-        return { success = false, message = 'You do not have permission to remove attachments' }
+        return { success = false, message = locale('notification_remove_attach_permission') }
     end
     
     local chargeId = tonumber(data.chargeId)
     local reportId = tonumber(data.reportId)
     
     if not chargeId or not reportId then
-        return { success = false, message = 'Charge ID and Report ID are required' }
+        return { success = false, message = locale('notification_charge_report_id_required') }
     end
     
     local affected = MySQL.update.await(
@@ -162,10 +162,10 @@ lib.callback.register('rsg-mdt:server:removeAttachmentFromCharge', function(sour
     
     if affected and affected > 0 then
         logAttachmentAction(source, 'report_detached', chargeId, reportId)
-        return { success = true, message = 'Report detached from charge' }
+        return { success = true, message = locale('notification_report_detached') }
     end
     
-    return { success = false, message = 'Attachment not found' }
+    return { success = false, message = locale('notification_attachment_not_found') }
 end)
 
 lib.callback.register('rsg-mdt:server:getChargeAttachments', function(source, chargeId)

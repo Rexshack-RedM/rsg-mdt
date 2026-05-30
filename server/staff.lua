@@ -167,18 +167,18 @@ lib.callback.register('rsg-mdt:server:getRoles', function(source)
 end)
 
 lib.callback.register('rsg-mdt:server:addStaff', function(source, data)
-    if not hasAdminPermission(source) then return { success = false, message = 'Permission denied' } end
+    if not hasAdminPermission(source) then return { success = false, message = locale('notification_permission_denied') } end
     
     local citizenid = data.citizenid
     local role = data.role or 'officer'
     local permissions = data.permissions or {}
     
     if not citizenid then
-        return { success = false, message = 'Citizen ID is required' }
+        return { success = false, message = locale('notification_citizenid_required') }
     end
     
     if isStaffMember(citizenid) then
-        return { success = false, message = 'This citizen is already a staff member' }
+        return { success = false, message = locale('notification_already_staff') }
     end
     
     local targetPlayer = RSGCore.Functions.GetPlayerByCitizenId(citizenid)
@@ -192,7 +192,7 @@ lib.callback.register('rsg-mdt:server:addStaff', function(source, data)
             local charinfo = json.decode(result[1].charinfo)
             name = charinfo.firstname .. ' ' .. charinfo.lastname
         else
-            return { success = false, message = 'Citizen not found' }
+            return { success = false, message = locale('notification_citizen_not_found') }
         end
     end
     
@@ -209,19 +209,19 @@ lib.callback.register('rsg-mdt:server:addStaff', function(source, data)
         return { success = true, id = insertId }
     end
     
-    return { success = false, message = 'Failed to add staff member' }
+    return { success = false, message = locale('notification_failed_add_staff') }
 end)
 
 lib.callback.register('rsg-mdt:server:removeStaff', function(source, citizenid)
-    if not hasAdminPermission(source) then return { success = false, message = 'Permission denied' } end
+    if not hasAdminPermission(source) then return { success = false, message = locale('notification_permission_denied') } end
     
     if not citizenid then
-        return { success = false, message = 'Citizen ID is required' }
+        return { success = false, message = locale('notification_citizenid_required') }
     end
     
     local staffInfo = MySQL.query.await("SELECT name FROM mdt_staff WHERE citizenid = ?", { citizenid })
     if not staffInfo or not staffInfo[1] then
-        return { success = false, message = 'Staff member not found' }
+        return { success = false, message = locale('notification_staff_not_found') }
     end
     
     local staffName = staffInfo[1].name
@@ -236,23 +236,23 @@ lib.callback.register('rsg-mdt:server:removeStaff', function(source, citizenid)
         return { success = true }
     end
     
-    return { success = false, message = 'Failed to remove staff member' }
+    return { success = false, message = locale('notification_failed_remove_staff') }
 end)
 
 lib.callback.register('rsg-mdt:server:updateStaffPermissions', function(source, data)
-    if not hasAdminPermission(source) then return { success = false, message = 'Permission denied' } end
+    if not hasAdminPermission(source) then return { success = false, message = locale('notification_permission_denied') } end
     
     local citizenid = data.citizenid
     local role = data.role
     local permissions = data.permissions
     
     if not citizenid then
-        return { success = false, message = 'Citizen ID is required' }
+        return { success = false, message = locale('notification_citizenid_required') }
     end
     
     local staffInfo = MySQL.query.await("SELECT name, role FROM mdt_staff WHERE citizenid = ?", { citizenid })
     if not staffInfo or not staffInfo[1] then
-        return { success = false, message = 'Staff member not found' }
+        return { success = false, message = locale('notification_staff_not_found') }
     end
     
     local staffName = staffInfo[1].name
@@ -281,23 +281,23 @@ lib.callback.register('rsg-mdt:server:updateStaffPermissions', function(source, 
         return { success = true }
     end
     
-    return { success = false, message = 'Failed to update staff member' }
+    return { success = false, message = locale('notification_failed_update_staff') }
 end)
 
 lib.callback.register('rsg-mdt:server:createRole', function(source, data)
-    if not hasAdminPermission(source) then return { success = false, message = 'Permission denied' } end
+    if not hasAdminPermission(source) then return { success = false, message = locale('notification_permission_denied') } end
     
     local name = data.name
     local label = data.label
     local permissions = data.permissions or {}
     
     if not name or not label then
-        return { success = false, message = 'Name and label are required' }
+        return { success = false, message = locale('notification_name_label_required') }
     end
     
     local existing = MySQL.query.await("SELECT id FROM mdt_roles WHERE name = ?", { name })
     if existing and existing[1] then
-        return { success = false, message = 'Role with this name already exists' }
+        return { success = false, message = locale('notification_role_exists') }
     end
     
     local insertId = MySQL.insert.await(
@@ -313,18 +313,18 @@ lib.callback.register('rsg-mdt:server:createRole', function(source, data)
         return { success = true, id = insertId }
     end
     
-    return { success = false, message = 'Failed to create role' }
+    return { success = false, message = locale('notification_failed_create_role') }
 end)
 
 lib.callback.register('rsg-mdt:server:updateRole', function(source, data)
-    if not hasAdminPermission(source) then return { success = false, message = 'Permission denied' } end
+    if not hasAdminPermission(source) then return { success = false, message = locale('notification_permission_denied') } end
     
     local name = data.name
     local label = data.label
     local permissions = data.permissions
     
     if not name then
-        return { success = false, message = 'Role name is required' }
+        return { success = false, message = locale('notification_role_name_required') }
     end
     
     local affected = MySQL.query.await(
@@ -340,19 +340,19 @@ lib.callback.register('rsg-mdt:server:updateRole', function(source, data)
         return { success = true }
     end
     
-    return { success = false, message = 'Failed to update role' }
+    return { success = false, message = locale('notification_failed_update_role') }
 end)
 
 lib.callback.register('rsg-mdt:server:deleteRole', function(source, roleName)
-    if not hasAdminPermission(source) then return { success = false, message = 'Permission denied' } end
+    if not hasAdminPermission(source) then return { success = false, message = locale('notification_permission_denied') } end
     
     if roleName == 'admin' or roleName == 'supervisor' or roleName == 'officer' then
-        return { success = false, message = 'Cannot delete default roles' }
+        return { success = false, message = locale('notification_cannot_delete_default') }
     end
     
     local roleInfo = MySQL.query.await("SELECT label FROM mdt_roles WHERE name = ?", { roleName })
     if not roleInfo or not roleInfo[1] then
-        return { success = false, message = 'Role not found' }
+        return { success = false, message = locale('notification_role_not_found') }
     end
     
     local affected = MySQL.query.await("DELETE FROM mdt_roles WHERE name = ?", { roleName })
@@ -365,7 +365,7 @@ lib.callback.register('rsg-mdt:server:deleteRole', function(source, roleName)
         return { success = true }
     end
     
-    return { success = false, message = 'Failed to delete role' }
+    return { success = false, message = locale('notification_failed_delete_role') }
 end)
 
 lib.callback.register('rsg-mdt:server:getAuditLogs', function(source, data)
@@ -434,7 +434,7 @@ end)
 
 lib.callback.register('rsg-mdt:server:assignLawJob', function(source, data)
     if not hasAdminPermission(source) then
-        return { success = false, message = 'Permission denied' }
+        return { success = false, message = locale('notification_permission_denied') }
     end
     
     local targetCitizenid = data.citizenid
@@ -442,25 +442,25 @@ lib.callback.register('rsg-mdt:server:assignLawJob', function(source, data)
     local gradeLevel = data.grade or 0
     
     if not targetCitizenid or not jobName then
-        return { success = false, message = 'Citizen ID and job are required' }
+        return { success = false, message = locale('notification_citizen_and_job_required') }
     end
     
     if not Config.LawJobs[jobName] then
-        return { success = false, message = 'Invalid law job' }
+        return { success = false, message = locale('notification_invalid_law_job') }
     end
     
     local jobConfig = Config.LawJobs[jobName]
     if not jobConfig.grades[gradeLevel] then
-        return { success = false, message = 'Invalid grade for this job' }
+        return { success = false, message = locale('notification_invalid_grade') }
     end
     
     local targetPlayer = RSGCore.Functions.GetPlayerByCitizenId(targetCitizenid)
     if not targetPlayer then
         local offlineResult = MySQL.query.await("SELECT citizenid FROM players WHERE citizenid = ?", { targetCitizenid })
         if not offlineResult or not offlineResult[1] then
-            return { success = false, message = 'Player not found' }
+            return { success = false, message = locale('notification_player_not_found') }
         end
-        return { success = false, message = 'Player must be online to assign a job' }
+        return { success = false, message = locale('notification_online_required') }
     end
     
     local targetSource = targetPlayer.PlayerData.source
@@ -470,7 +470,7 @@ lib.callback.register('rsg-mdt:server:assignLawJob', function(source, data)
     local previousJobLabel = currentJob and currentJob.label or 'None'
     
     if previousJobName == jobName then
-        return { success = false, message = 'Player already has this law job' }
+        return { success = false, message = locale('notification_already_has_job') }
     end
     
     if #previousLawJobs > 0 then
@@ -485,7 +485,7 @@ lib.callback.register('rsg-mdt:server:assignLawJob', function(source, data)
     
     if not success then
         print('[rsg-mdt] Error assigning job: ' .. tostring(err))
-        return { success = false, message = 'Failed to assign job' }
+        return { success = false, message = locale('notification_failed_assign_job') }
     end
     
     local jobLabel = jobConfig.label
@@ -504,7 +504,7 @@ lib.callback.register('rsg-mdt:server:assignLawJob', function(source, data)
     
     TriggerClientEvent('rsg-mdt:client:notify', targetSource, {
         type = 'success',
-        message = 'You have been assigned to ' .. jobLabel .. ' as ' .. gradeLabel
+        message = locale('notification_job_assigned', jobLabel, gradeLabel)
     })
     
     local performer = RSGCore.Functions.GetPlayer(source)
@@ -523,7 +523,7 @@ lib.callback.register('rsg-mdt:server:assignLawJob', function(source, data)
     
     return { 
         success = true, 
-        message = playerName .. ' has been assigned to ' .. jobLabel .. ' as ' .. gradeLabel,
+        message = locale('notification_job_assigned_format', playerName, jobLabel, gradeLabel),
         playerName = playerName,
         jobLabel = jobLabel,
         gradeLabel = gradeLabel,
@@ -609,7 +609,7 @@ end)
 
 lib.callback.register('rsg-mdt:server:updateOfficerDepartment', function(source, data)
     if not hasAdminPermission(source) then
-        return { success = false, message = 'Permission denied' }
+        return { success = false, message = locale('notification_permission_denied') }
     end
     
     local targetCitizenid = data.citizenid
@@ -617,11 +617,11 @@ lib.callback.register('rsg-mdt:server:updateOfficerDepartment', function(source,
     local newGradeLevel = data.grade
     
     if not targetCitizenid or not newJobName then
-        return { success = false, message = 'Citizen ID and department are required' }
+        return { success = false, message = locale('notification_citizenid_department_required') }
     end
     
     if not Config.LawJobs[newJobName] then
-        return { success = false, message = 'Invalid department' }
+        return { success = false, message = locale('notification_invalid_department') }
     end
     
     local jobConfig = Config.LawJobs[newJobName]
@@ -638,12 +638,12 @@ lib.callback.register('rsg-mdt:server:updateOfficerDepartment', function(source,
     
     local staffInfo = MySQL.query.await("SELECT name, role FROM mdt_staff WHERE citizenid = ?", { targetCitizenid })
     if not staffInfo or not staffInfo[1] then
-        return { success = false, message = 'Officer not found in staff records' }
+        return { success = false, message = locale('notification_officer_not_found_staff') }
     end
     
     local targetPlayer = RSGCore.Functions.GetPlayerByCitizenId(targetCitizenid)
     if not targetPlayer then
-        return { success = false, message = 'Player must be online to change department' }
+        return { success = false, message = locale('notification_target_online_required') }
     end
     
     local targetSource = targetPlayer.PlayerData.source
@@ -654,7 +654,7 @@ lib.callback.register('rsg-mdt:server:updateOfficerDepartment', function(source,
     local previousGradeLevel = currentJob and currentJob.grade and currentJob.grade.level or 0
     
     if previousJobName == newJobName then
-        return { success = false, message = 'Officer is already in this department' }
+        return { success = false, message = locale('notification_already_in_department') }
     end
     
     if #previousLawJobs > 0 then
@@ -669,7 +669,7 @@ lib.callback.register('rsg-mdt:server:updateOfficerDepartment', function(source,
     
     if not success then
         print('[rsg-mdt] Error updating department: ' .. tostring(err))
-        return { success = false, message = 'Failed to update department' }
+        return { success = false, message = locale('notification_failed_update_department') }
     end
     
     local playerName = targetPlayer.PlayerData.charinfo.firstname .. ' ' .. targetPlayer.PlayerData.charinfo.lastname
@@ -688,7 +688,7 @@ lib.callback.register('rsg-mdt:server:updateOfficerDepartment', function(source,
     
     TriggerClientEvent('rsg-mdt:client:notify', targetSource, {
         type = 'success',
-        message = 'Your department has been changed to ' .. newJobLabel
+        message = locale('notification_department_changed', newJobLabel)
     })
     
     local performer = RSGCore.Functions.GetPlayer(source)
@@ -708,7 +708,7 @@ lib.callback.register('rsg-mdt:server:updateOfficerDepartment', function(source,
     
     return {
         success = true,
-        message = playerName .. ' transferred to ' .. newJobLabel,
+        message = locale('notification_department_changed_format', playerName, newJobLabel),
         playerName = playerName,
         jobLabel = newJobLabel,
         gradeLabel = newGradeLabel,
@@ -819,7 +819,7 @@ end)
 
 lib.callback.register('rsg-mdt:server:syncStaffFromJobs', function(source, filterJob)
     if not hasAdminPermission(source) then
-        return { success = false, message = 'Permission denied', added = 0 }
+        return { success = false, message = locale('notification_permission_denied'), added = 0 }
     end
     
     local lawJobNames = {}
@@ -830,7 +830,7 @@ lib.callback.register('rsg-mdt:server:syncStaffFromJobs', function(source, filte
     end
     
     if #lawJobNames == 0 then
-        return { success = true, message = 'No law jobs to sync', added = 0 }
+        return { success = true, message = locale('staff_sync_no_jobs'), added = 0 }
     end
     
     local placeholders = {}
@@ -842,7 +842,7 @@ lib.callback.register('rsg-mdt:server:syncStaffFromJobs', function(source, filte
     local results = MySQL.query.await(query)
     
     if not results then
-        return { success = true, message = 'No players found', added = 0 }
+        return { success = true, message = locale('staff_sync_no_players'), added = 0 }
     end
     
     local addedCount = 0
@@ -895,7 +895,7 @@ lib.callback.register('rsg-mdt:server:syncStaffFromJobs', function(source, filte
     
     return {
         success = true,
-        message = addedCount > 0 and (addedCount .. ' officer(s) added to staff') or 'All officers already in staff',
+        message = addedCount > 0 and locale('staff_sync_added', addedCount) or locale('staff_sync_none'),
         added = addedCount,
         players = addedPlayers
     }

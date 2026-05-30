@@ -42,7 +42,7 @@ end
 -- ============================================
 local function AttemptLocalOverride(newRole)
     logMismatch('Attempted Override', newRole, RoleState.myRole, 'Local role modification rejected - must use server events')
-    return false, 'Cannot modify role locally - changes must be made through server'
+    return false, locale('role_cannot_override')
 end
 
 local function GetMyRole()
@@ -123,12 +123,12 @@ RegisterNetEvent('rsg-mdt:roleSync:receiveMyRole', function(roleData)
     
     if roleData and previousRole then
         if roleData.job.name ~= previousRole.job.name or roleData.job.grade ~= previousRole.job.grade then
-            logInfo('Role updated: ' .. previousRole.job.name .. ' -> ' .. roleData.job.name)
+            logInfo(locale('role_updated', previousRole.job.name, roleData.job.name))
         end
     elseif roleData and not previousRole then
-        logInfo('Role assigned: ' .. roleData.job.name .. ' (Grade ' .. roleData.job.grade .. ')')
+        logInfo(locale('role_added', roleData.job.name, roleData.job.grade))
     elseif not roleData and previousRole then
-        logInfo('Role removed: ' .. previousRole.job.name)
+        logInfo(locale('role_removed', previousRole.job.name))
     end
     
     TriggerEvent('rsg-mdt:roleSync:myRoleUpdated', roleData)

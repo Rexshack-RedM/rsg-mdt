@@ -8,7 +8,7 @@ local configVersion = 1
 local function validateConfig()
     if not Config.LawJobs then
         Config.LawJobs = {}
-        print('[rsg-mdt] Warning: LawJobs config missing, using empty table')
+        print('[rsg-mdt] ' .. locale('config_warning_missing'))
     end
     
     for jobName, jobConfig in pairs(Config.LawJobs) do
@@ -42,7 +42,7 @@ local function validateConfig()
     configVersion = configVersion + 1
     
     if Config.Settings.debug then
-        print('[rsg-mdt] Config validated (v' .. configVersion .. ')')
+        print('[rsg-mdt] ' .. locale('config_validated', configVersion))
     end
 end
 
@@ -148,12 +148,12 @@ exports('reloadConfig', function()
         if loadFunc then
             loadFunc()
             validateConfig()
-            return true, 'Config reloaded (v' .. configVersion .. ')'
+            return true, locale('config_reloaded', configVersion)
         else
-            return false, 'Failed to parse config: ' .. tostring(err)
+            return false, locale('config_parse_failed', tostring(err))
         end
     end
-    return false, 'Failed to load config file'
+    return false, locale('config_load_failed')
 end)
 
 -- ============================================
@@ -185,7 +185,7 @@ RegisterNetEvent('rsg-mdt:server:reloadConfig', function()
     if not hasPermission(source, 'isAdmin') then
         TriggerClientEvent('rsg-mdt:client:notify', source, {
             type = 'error',
-            message = 'You do not have permission to reload config'
+            message = locale('notification_no_permission_reload')
         })
         return
     end

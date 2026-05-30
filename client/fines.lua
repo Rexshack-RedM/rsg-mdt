@@ -17,14 +17,14 @@ end
 
 local function formatTimeRemaining(dueTimestamp)
     if not dueTimestamp or type(dueTimestamp) ~= 'number' or dueTimestamp <= 0 then
-        return 'Unknown', 0
+        return locale('fines_unknown'), 0
     end
     
     local now = GetCloudTimeAsInt()
     local remaining = dueTimestamp - now
     
     if remaining <= 0 then
-        return 'OVERDUE', 0
+        return locale('fines_overdue'), 0
     end
     
     local days = math.floor(remaining / 86400)
@@ -33,13 +33,13 @@ local function formatTimeRemaining(dueTimestamp)
     local seconds = remaining % 60
     
     if days > 0 then
-        return string.format('%d day%s, %d hour%s', days, days == 1 and '' or 's', hours, hours == 1 and '' or 's'), remaining
+        return locale('fines_amount_left', days, days == 1 and '' or 's', hours, hours == 1 and '' or 's'), remaining
     elseif hours > 0 then
-        return string.format('%d hour%s, %d min', hours, hours == 1 and '' or 's', minutes), remaining
+        return locale('fines_hours_left', hours, hours == 1 and '' or 's', minutes), remaining
     elseif minutes > 0 then
-        return string.format('%d min %d sec', minutes, seconds), remaining
+        return locale('fines_minutes_left', minutes, seconds), remaining
     else
-        return string.format('%d second%s', seconds, seconds == 1 and '' or 's'), remaining
+        return locale('fines_seconds_left', seconds, seconds == 1 and '' or 's'), remaining
     end
 end
 
@@ -73,13 +73,13 @@ end)
 RegisterNetEvent('rsg-mdt:client:finePaymentResult', function(data)
     if data.success then
         lib.notify({
-            title = 'Fine Payment',
+            title = locale('fines_title'),
             description = data.message,
             type = 'success'
         })
     else
         lib.notify({
-            title = 'Fine Payment',
+            title = locale('fines_title'),
             description = data.message,
             type = 'error'
         })
@@ -94,7 +94,7 @@ local function createFinesPaymentTargets()
     
     for i, location in ipairs(locations) do
         local coords = location.coords
-        local name = location.name or 'Court Clerk'
+        local name = location.name or locale('system_court_clerk')
         
         local pedModel = GetHashKey('u_m_m_valsheriff_01')
         
@@ -123,7 +123,7 @@ local function createFinesPaymentTargets()
             {
                 name = 'pay_fines_' .. i,
                 icon = 'fa-solid fa-money-bill',
-                label = 'Pay Fines',
+                label = locale('fines_pay_label'),
                 distance = 2.5,
                 canInteract = function()
                     return hasUnpaidFines()
@@ -134,8 +134,8 @@ local function createFinesPaymentTargets()
                         
                         if #playerFines == 0 then
                             lib.notify({
-                                title = 'Fines',
-                                description = 'You have no unpaid fines.',
+                                title = locale('fines_title'),
+                                description = locale('notification_no_unpaid_fines'),
                                 type = 'inform'
                             })
                             return
@@ -146,21 +146,21 @@ local function createFinesPaymentTargets()
                         
                         for _, fine in ipairs(playerFines) do
                             local timeRemaining, _ = formatTimeRemaining(fine.due_timestamp)
-                            local statusLabel = fine.status == 'overdue' and ' (OVERDUE)' or ''
+                            local statusLabel = fine.status == 'overdue' and locale('fines_fine_overdue') or ''
                             
                             table.insert(options, {
-                                title = 'Fine #' .. fine.id .. statusLabel,
-                                description = string.format('Amount: $%d | Time Left: %s', fine.total_amount, timeRemaining),
+                                title = locale('fines_fine_label'):format(fine.id) .. statusLabel,
+                                description = locale('fines_fine_detail', fine.total_amount, timeRemaining),
                                 icon = fine.status == 'overdue' and 'exclamation-triangle' or 'money-bill',
                                 onSelect = function()
                                     local alert = lib.alertDialog({
-                                        header = 'Pay Fine',
-                                        content = string.format('Are you sure you want to pay fine #%d?\n\nAmount: $%d\n\nThis will be deducted from your cash.', fine.id, fine.total_amount),
+                                        header = locale('fines_pay_header'),
+                                        content = locale('fines_pay_content', fine.id, fine.total_amount),
                                         centered = true,
                                         cancel = true,
                                         labels = {
-                                            confirm = 'Pay',
-                                            cancel = 'Cancel'
+                                            confirm = locale('fines_pay_confirm'),
+                                            cancel = locale('fines_cancel')
                                         }
                                     })
                                     
@@ -177,18 +177,18 @@ local function createFinesPaymentTargets()
                         end
                         
                         table.insert(options, {
-                            title = 'Pay All Fines',
-                            description = string.format('Total: $%d', total),
+                            title = locale('fines_pay_all_title'),
+                            description = locale('fines_pay_all_total', total),
                             icon = 'money-check-dollar',
                             onSelect = function()
                                 local alert = lib.alertDialog({
-                                    header = 'Pay All Fines',
-                                    content = string.format('Are you sure you want to pay all %d fine(s)?\n\nTotal Amount: $%d\n\nThis will be deducted from your cash.', #playerFines, total),
+                                    header = locale('fines_pay_all_title'),
+                                    content = locale('fines_pay_all_content', #playerFines, total),
                                     centered = true,
                                     cancel = true,
                                     labels = {
-                                        confirm = 'Pay All',
-                                        cancel = 'Cancel'
+                                        confirm = locale('fines_pay_all_confirm'),
+                                        cancel = locale('fines_cancel')
                                     }
                                 })
                                 
@@ -206,7 +206,7 @@ local function createFinesPaymentTargets()
                         
                         lib.registerContext({
                             id = 'fines_payment_menu',
-                            title = name .. ' - Unpaid Fines',
+                            title = locale('fines_unpaid_title', name),
                             options = options
                         })
                         
@@ -217,7 +217,7 @@ local function createFinesPaymentTargets()
             {
                 name = 'check_fines_' .. i,
                 icon = 'fa-solid fa-file-invoice-dollar',
-                label = 'Check Fines',
+                label = locale('fines_check_label'),
                 distance = 2.5,
                 onSelect = function()
                     lib.callback('rsg-mdt:server:getPlayerFines', false, function(fines)
@@ -225,15 +225,15 @@ local function createFinesPaymentTargets()
                         
                         if #playerFines == 0 then
                             lib.notify({
-                                title = 'Fines',
-                                description = 'You have no unpaid fines. You are clear!',
+                                title = locale('fines_title'),
+                                description = locale('notification_no_unpaid_fines_clear'),
                                 type = 'success'
                             })
                         else
                             local total = getTotalFinesAmount()
                             lib.notify({
-                                title = 'Fines',
-                                description = string.format('You have %d unpaid fine(s) totaling $%d', #playerFines, total),
+                                title = locale('fines_title'),
+                                description = locale('notification_unpaid_fines_count', #playerFines, total),
                                 type = 'warning'
                             })
                         end
@@ -275,7 +275,7 @@ end)
 
 RegisterNuiCallback('payFine', function(data, cb)
     local result = lib.callback.await('rsg-mdt:server:payFine', false, data.fineId)
-    cb(result or { success = false, message = 'Unknown error' })
+    cb(result or { success = false, message = locale('notification_unknown_error') })
 end)
 
 RegisterNuiCallback('getUnpaidFinesCount', function(data, cb)
@@ -295,7 +295,7 @@ end)
 
 RegisterNuiCallback('markFinePaid', function(data, cb)
     local result = lib.callback.await('rsg-mdt:server:markFinePaid', false, data.fineId)
-    cb(result or { success = false, message = 'Unknown error' })
+    cb(result or { success = false, message = locale('notification_unknown_error') })
 end)
 
 RegisterNetEvent('rsg-mdt:client:finePaid', function(data)

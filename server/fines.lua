@@ -155,12 +155,12 @@ end)
 lib.callback.register('rsg-mdt:server:payFine', function(source, fineId)
     fineId = tonumber(fineId)
     if not fineId then
-        return { success = false, message = 'Invalid fine ID' }
+        return { success = false, message = locale('notification_invalid_fine_id') }
     end
     
     local player = RSGCore.Functions.GetPlayer(source)
     if not player then
-        return { success = false, message = 'Player not found' }
+        return { success = false, message = locale('notification_player_not_found') }
     end
     
     local citizenid = player.PlayerData.citizenid
@@ -171,7 +171,7 @@ lib.callback.register('rsg-mdt:server:payFine', function(source, fineId)
     )
     
     if not fine or not fine[1] then
-        return { success = false, message = 'Fine not found or already paid' }
+        return { success = false, message = locale('notification_fine_not_found') }
     end
     
     local fineData = fine[1]
@@ -181,12 +181,12 @@ lib.callback.register('rsg-mdt:server:payFine', function(source, fineId)
     local cashBalance = playerMoney and playerMoney.cash or 0
     
     if cashBalance < totalAmount then
-        return { success = false, message = 'Insufficient funds. You need $' .. totalAmount .. ' in cash.' }
+        return { success = false, message = locale('notification_insufficient_funds', totalAmount) }
     end
     
     local removed = player.Functions.RemoveMoney('cash', totalAmount, 'mdt-fine-payment')
     if not removed then
-        return { success = false, message = 'Failed to process payment' }
+        return { success = false, message = locale('notification_payment_failed') }
     end
     
     local timestamp = os.date('%Y-%m-%d %H:%M:%S')
@@ -211,11 +211,11 @@ lib.callback.register('rsg-mdt:server:payFine', function(source, fineId)
     
     TriggerClientEvent('rsg-mdt:client:finePaymentResult', source, {
         success = true,
-        message = 'Fine paid successfully! $' .. totalAmount .. ' has been deducted from your cash.',
+        message = locale('notification_fine_paid_success', totalAmount),
         fineId = fineId
     })
     
-    return { success = true, message = 'Fine paid successfully' }
+    return { success = true, message = locale('notification_fine_paid') }
 end)
 
 lib.callback.register('rsg-mdt:server:getPlayerFines', function(source)
@@ -280,7 +280,7 @@ end)
 
 lib.callback.register('rsg-mdt:server:markFineOverdue', function(source, fineId)
     if not hasCreateRecordsPermission(source) then 
-        return { success = false, message = 'No permission' }
+        return { success = false, message = locale('notification_no_permission') }
     end
     
     MySQL.update.await(
@@ -293,12 +293,12 @@ end)
 
 lib.callback.register('rsg-mdt:server:markFinePaid', function(source, fineId)
     if not hasCreateRecordsPermission(source) then
-        return { success = false, message = 'No permission to mark fines as paid' }
+        return { success = false, message = locale('notification_no_permission_mark_fines') }
     end
     
     fineId = tonumber(fineId)
     if not fineId then
-        return { success = false, message = 'Invalid fine ID' }
+        return { success = false, message = locale('notification_invalid_fine_id') }
     end
     
     local fine = MySQL.query.await(
@@ -307,7 +307,7 @@ lib.callback.register('rsg-mdt:server:markFinePaid', function(source, fineId)
     )
     
     if not fine or not fine[1] then
-        return { success = false, message = 'Fine not found or already paid' }
+        return { success = false, message = locale('notification_fine_not_found') }
     end
     
     local fineData = fine[1]
@@ -351,7 +351,7 @@ lib.callback.register('rsg-mdt:server:markFinePaid', function(source, fineId)
     
     return { 
         success = true, 
-        message = 'Fine marked as paid successfully',
+        message = locale('notification_fine_marked_paid'),
         fine = fineResult
     }
 end)

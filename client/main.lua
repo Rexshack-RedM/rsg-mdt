@@ -85,11 +85,11 @@ end)
 
 RegisterNetEvent('rsg-mdt:client:notify', function(data)
     if data.type == 'success' then
-        lib.notify({ title = 'MDT', description = data.message, type = 'success' })
+        lib.notify({ title = locale('mdt_title'), description = data.message, type = 'success' })
     elseif data.type == 'error' then
-        lib.notify({ title = 'MDT', description = data.message, type = 'error' })
+        lib.notify({ title = locale('mdt_title'), description = data.message, type = 'error' })
     else
-        lib.notify({ title = 'MDT', description = data.message })
+        lib.notify({ title = locale('mdt_title'), description = data.message })
     end
 end)
 
@@ -137,7 +137,7 @@ end)
 -- ============================================
 RegisterCommand('mdt', function()
     if not HasMDTAccess() then
-        lib.notify({ title = 'MDT', description = 'Only law enforcement on duty can access the MDT', type = 'error' })
+        lib.notify({ title = locale('mdt_title'), description = locale('notification_access_denied'), type = 'error' })
         return
     end
     
@@ -152,7 +152,7 @@ end, false)
 -- RedM-compatible keybind using ox_lib
 lib.addKeybind({
     name = 'mdt',
-    description = 'Open MDT',
+    description = locale('mdt_title') .. ' - Open',
     defaultKey = 'F7',
     onPressed = function()
         ExecuteCommand('mdt')
@@ -303,32 +303,32 @@ end)
 
 RegisterNuiCallback('addStaff', function(data, cb)
     local result = lib.callback.await('rsg-mdt:server:addStaff', false, data)
-    cb(result or { success = false, message = 'Unknown error' })
+    cb(result or { success = false, message = locale('notification_unknown_error') })
 end)
 
 RegisterNuiCallback('removeStaff', function(data, cb)
     local result = lib.callback.await('rsg-mdt:server:removeStaff', false, data.citizenid)
-    cb(result or { success = false, message = 'Unknown error' })
+    cb(result or { success = false, message = locale('notification_unknown_error') })
 end)
 
 RegisterNuiCallback('updateStaffPermissions', function(data, cb)
     local result = lib.callback.await('rsg-mdt:server:updateStaffPermissions', false, data)
-    cb(result or { success = false, message = 'Unknown error' })
+    cb(result or { success = false, message = locale('notification_unknown_error') })
 end)
 
 RegisterNuiCallback('createRole', function(data, cb)
     local result = lib.callback.await('rsg-mdt:server:createRole', false, data)
-    cb(result or { success = false, message = 'Unknown error' })
+    cb(result or { success = false, message = locale('notification_unknown_error') })
 end)
 
 RegisterNuiCallback('updateRole', function(data, cb)
     local result = lib.callback.await('rsg-mdt:server:updateRole', false, data)
-    cb(result or { success = false, message = 'Unknown error' })
+    cb(result or { success = false, message = locale('notification_unknown_error') })
 end)
 
 RegisterNuiCallback('deleteRole', function(data, cb)
     local result = lib.callback.await('rsg-mdt:server:deleteRole', false, data.name)
-    cb(result or { success = false, message = 'Unknown error' })
+    cb(result or { success = false, message = locale('notification_unknown_error') })
 end)
 
 RegisterNuiCallback('getAuditLogs', function(data, cb)
@@ -358,7 +358,7 @@ end)
 
 RegisterNuiCallback('assignLawJob', function(data, cb)
     local result = lib.callback.await('rsg-mdt:server:assignLawJob', false, data)
-    cb(result or { success = false, message = 'Unknown error' })
+    cb(result or { success = false, message = locale('notification_unknown_error') })
 end)
 
 RegisterNuiCallback('getJobGrades', function(data, cb)
@@ -372,7 +372,7 @@ end)
 
 RegisterNuiCallback('updateOfficerDepartment', function(data, cb)
     local result = lib.callback.await('rsg-mdt:server:updateOfficerDepartment', false, data)
-    cb(result or { success = false, message = 'Unknown error' })
+    cb(result or { success = false, message = locale('notification_unknown_error') })
 end)
 
 RegisterNuiCallback('getOfficers', function(_, cb)
@@ -387,7 +387,7 @@ end)
 
 RegisterNuiCallback('syncStaffFromJobs', function(data, cb)
     local result = lib.callback.await('rsg-mdt:server:syncStaffFromJobs', false, data and data.job)
-    cb(result or { success = false, message = 'Unknown error', added = 0 })
+    cb(result or { success = false, message = locale('notification_unknown_error'), added = 0 })
 end)
 
 RegisterNetEvent('rsg-mdt:client:departmentUpdated', function(data)
@@ -402,22 +402,22 @@ end)
 
 RegisterNuiCallback('addChargeTemplate', function(data, cb)
     local result = lib.callback.await('rsg-mdt:server:addChargeTemplate', false, data)
-    cb(result or { success = false, message = 'Unknown error' })
+    cb(result or { success = false, message = locale('notification_unknown_error') })
 end)
 
 RegisterNuiCallback('updateChargeTemplate', function(data, cb)
     local result = lib.callback.await('rsg-mdt:server:updateChargeTemplate', false, data)
-    cb(result or { success = false, message = 'Unknown error' })
+    cb(result or { success = false, message = locale('notification_unknown_error') })
 end)
 
 RegisterNuiCallback('deleteChargeTemplate', function(data, cb)
     local result = lib.callback.await('rsg-mdt:server:deleteChargeTemplate', false, data.id)
-    cb(result or { success = false, message = 'Unknown error' })
+    cb(result or { success = false, message = locale('notification_unknown_error') })
 end)
 
 RegisterNuiCallback('issueCharges', function(data, cb)
     local result = lib.callback.await('rsg-mdt:server:issueCharges', false, data)
-    cb(result or { success = false, message = 'Unknown error' })
+    cb(result or { success = false, message = locale('notification_unknown_error') })
 end)
 
 RegisterNuiCallback('getIssuedCharges', function(data, cb)
@@ -446,12 +446,12 @@ end)
 
 RegisterNuiCallback('attachReportsToCharge', function(data, cb)
     local result = lib.callback.await('rsg-mdt:server:attachReportsToCharge', false, data)
-    cb(result or { success = false, message = 'Unknown error' })
+    cb(result or { success = false, message = locale('notification_unknown_error') })
 end)
 
 RegisterNuiCallback('removeAttachmentFromCharge', function(data, cb)
     local result = lib.callback.await('rsg-mdt:server:removeAttachmentFromCharge', false, data)
-    cb(result or { success = false, message = 'Unknown error' })
+    cb(result or { success = false, message = locale('notification_unknown_error') })
 end)
 
 RegisterNuiCallback('getChargeAttachments', function(data, cb)
@@ -473,19 +473,19 @@ local jailInProgress = false
 
 RegisterNuiCallback('startJailProcess', function(data, cb)
     if jailInProgress then
-        cb({ success = false, message = 'Jail process already in progress' })
+        cb({ success = false, message = locale('notification_jail_in_progress') })
         return
     end
     
     local config = lib.callback.await('rsg-mdt:server:getJailConfig')
     if not config or not config.enabled then
-        cb({ success = false, message = 'Jail system is disabled' })
+        cb({ success = false, message = locale('notification_jail_disabled') })
         return
     end
     
     local targetPlayerId = data.targetPlayerId
     if not targetPlayerId then
-        cb({ success = false, message = 'Target player not found (offline?)' })
+        cb({ success = false, message = locale('notification_target_offline') })
         return
     end
     
@@ -494,7 +494,7 @@ RegisterNuiCallback('startJailProcess', function(data, cb)
     local targetPed = GetPlayerPed(GetPlayerFromServerId(targetPlayerId))
     
     if not targetPed or targetPed == 0 then
-        cb({ success = false, message = 'Target player not found nearby' })
+        cb({ success = false, message = locale('notification_target_not_found') })
         return
     end
     
@@ -502,7 +502,7 @@ RegisterNuiCallback('startJailProcess', function(data, cb)
     local distToTarget = #(playerCoords - targetCoords)
     
     if distToTarget > config.maxDistance then
-        cb({ success = false, message = 'You must be closer to the suspect to jail them' })
+        cb({ success = false, message = locale('notification_target_too_far') })
         return
     end
     
@@ -534,7 +534,7 @@ RegisterNuiCallback('startJailProcess', function(data, cb)
         if distToTarget > config.maxDistance then
             SendNUIMessage(json.encode({ 
                 action = 'jailStatus', 
-                data = { status = 'cancelled', message = 'Target moved out of range' } 
+                data = { status = locale('jail_cancelled'), message = locale('notification_target_moved') } 
             }))
             jailInProgress = false
             return
@@ -542,7 +542,7 @@ RegisterNuiCallback('startJailProcess', function(data, cb)
         
         SendNUIMessage(json.encode({ 
             action = 'jailStatus', 
-            data = { status = 'processing', remaining = remaining } 
+            data = { status = locale('jail_processing'), remaining = remaining } 
         }))
         
         Wait(500)
@@ -561,8 +561,8 @@ RegisterNuiCallback('startJailProcess', function(data, cb)
     SendNUIMessage(json.encode({ 
         action = 'jailStatus', 
         data = { 
-            status = result and result.success and 'completed' or 'failed',
-            message = result and result.message or 'Unknown error'
+            status = result and result.success and locale('jail_completed') or locale('jail_failed'),
+            message = result and result.message or locale('notification_unknown_error')
         } 
     }))
     
@@ -571,19 +571,19 @@ end)
 
 RegisterNuiCallback('commitCharges', function(data, cb)
     if jailInProgress then
-        cb({ success = false, message = 'Jail process already in progress' })
+        cb({ success = false, message = locale('notification_jail_in_progress') })
         return
     end
     
     local config = lib.callback.await('rsg-mdt:server:getJailConfig')
     if not config or not config.enabled then
-        cb({ success = false, message = 'Jail system is disabled' })
+        cb({ success = false, message = locale('notification_jail_disabled') })
         return
     end
     
     local targetPlayerId = data.targetPlayerId
     if not targetPlayerId then
-        cb({ success = false, message = 'Target player not found (offline?)' })
+        cb({ success = false, message = locale('notification_target_offline') })
         return
     end
     
@@ -592,7 +592,7 @@ RegisterNuiCallback('commitCharges', function(data, cb)
     local targetPed = GetPlayerPed(GetPlayerFromServerId(targetPlayerId))
     
     if not targetPed or targetPed == 0 then
-        cb({ success = false, message = 'Target player not found nearby' })
+        cb({ success = false, message = locale('notification_target_not_found') })
         return
     end
     
@@ -600,7 +600,7 @@ RegisterNuiCallback('commitCharges', function(data, cb)
     local distToTarget = #(playerCoords - targetCoords)
     
     if distToTarget > config.maxDistance then
-        cb({ success = false, message = 'You must be closer to the suspect to jail them' })
+        cb({ success = false, message = locale('notification_target_too_far') })
         return
     end
     
@@ -611,7 +611,7 @@ RegisterNuiCallback('commitCharges', function(data, cb)
     
     SendNUIMessage(json.encode({ 
         action = 'jailStatus', 
-        data = { status = 'processing', remaining = config.delaySeconds } 
+        data = { status = locale('jail_processing'), remaining = config.delaySeconds } 
     }))
     
     local delayMs = config.delaySeconds * 1000
@@ -633,7 +633,7 @@ RegisterNuiCallback('commitCharges', function(data, cb)
         if distToTarget > config.maxDistance then
             SendNUIMessage(json.encode({ 
                 action = 'jailStatus', 
-                data = { status = 'cancelled', message = 'Target moved out of range' } 
+                data = { status = locale('jail_cancelled'), message = locale('notification_target_moved') } 
             }))
             jailInProgress = false
             return
@@ -641,7 +641,7 @@ RegisterNuiCallback('commitCharges', function(data, cb)
         
         SendNUIMessage(json.encode({ 
             action = 'jailStatus', 
-            data = { status = 'processing', remaining = remaining } 
+            data = { status = locale('jail_processing'), remaining = remaining } 
         }))
         
         Wait(500)
@@ -657,7 +657,7 @@ RegisterNuiCallback('commitCharges', function(data, cb)
         SendNUIMessage(json.encode({ 
             action = 'jailStatus', 
             data = { 
-                status = 'completed',
+                status = locale('jail_completed'),
                 message = result.message,
                 totalJailtime = result.totalJailtime,
                 totalServed = result.totalServed
@@ -676,8 +676,8 @@ RegisterNuiCallback('commitCharges', function(data, cb)
         SendNUIMessage(json.encode({ 
             action = 'jailStatus', 
             data = { 
-                status = 'failed',
-                message = result and result.message or 'Unknown error'
+                status = locale('jail_failed'),
+                message = result and result.message or locale('notification_unknown_error')
             } 
         }))
     end
@@ -695,7 +695,7 @@ RegisterNuiCallback('abortJail', function(_, cb)
         jailInProgress = false
         SendNUIMessage(json.encode({ 
             action = 'jailStatus', 
-            data = { status = 'cancelled', message = 'Sentencing aborted by officer' } 
+            data = { status = locale('jail_cancelled'), message = locale('notification_jail_aborted') } 
         }))
     end
     cb({ success = true })
@@ -707,13 +707,13 @@ RegisterNuiCallback('submitCharges', function(data, cb)
     
     if hasJailTime and targetPlayerId then
         if jailInProgress then
-            cb({ success = false, message = 'Jail process already in progress', requiresDelay = true })
+            cb({ success = false, message = locale('notification_jail_in_progress'), requiresDelay = true })
             return
         end
         
         local config = lib.callback.await('rsg-mdt:server:getJailConfig')
         if not config or not config.enabled then
-            cb({ success = false, message = 'Jail system is disabled', requiresDelay = true })
+            cb({ success = false, message = locale('notification_jail_disabled'), requiresDelay = true })
             return
         end
         
@@ -722,7 +722,7 @@ RegisterNuiCallback('submitCharges', function(data, cb)
         local targetPed = GetPlayerPed(GetPlayerFromServerId(targetPlayerId))
         
         if not targetPed or targetPed == 0 then
-            cb({ success = false, message = 'Target player not found nearby', requiresDelay = true })
+            cb({ success = false, message = locale('notification_target_not_found'), requiresDelay = true })
             return
         end
         
@@ -730,7 +730,7 @@ RegisterNuiCallback('submitCharges', function(data, cb)
         local distToTarget = #(playerCoords - targetCoords)
         
         if distToTarget > config.maxDistance then
-            cb({ success = false, message = 'You must be closer to the suspect to jail them', requiresDelay = true })
+            cb({ success = false, message = locale('notification_target_too_far'), requiresDelay = true })
             return
         end
         
@@ -738,11 +738,11 @@ RegisterNuiCallback('submitCharges', function(data, cb)
         
         jailInProgress = true
         
-        local citizenName = data.citizenName or 'Suspect'
+        local citizenName = data.citizenName or locale('system_suspect')
         
         SendNUIMessage(json.encode({ 
             action = 'jailStatus', 
-            data = { status = 'processing', remaining = config.delaySeconds, citizenName = citizenName } 
+            data = { status = locale('jail_processing'), remaining = config.delaySeconds, citizenName = citizenName } 
         }))
         
         local delayMs = config.delaySeconds * 1000
@@ -764,7 +764,7 @@ RegisterNuiCallback('submitCharges', function(data, cb)
             if checkDist > config.maxDistance then
             SendNUIMessage(json.encode({ 
                 action = 'jailStatus', 
-                data = { status = 'cancelled', message = 'Target moved out of range', citizenName = citizenName } 
+                data = { status = locale('jail_cancelled'), message = locale('notification_target_moved'), citizenName = citizenName } 
             }))
                 jailInProgress = false
                 return
@@ -772,7 +772,7 @@ RegisterNuiCallback('submitCharges', function(data, cb)
             
             SendNUIMessage(json.encode({ 
                 action = 'jailStatus', 
-                data = { status = 'processing', remaining = remaining, citizenName = citizenName } 
+                data = { status = locale('jail_processing'), remaining = remaining, citizenName = citizenName } 
             }))
             
             Wait(500)
@@ -788,7 +788,7 @@ RegisterNuiCallback('submitCharges', function(data, cb)
             SendNUIMessage(json.encode({ 
                 action = 'jailStatus', 
                 data = { 
-                    status = 'completed',
+                    status = locale('jail_completed'),
                     message = result.message,
                     totalJailtime = result.totalJailtime,
                     totalServed = result.totalServed,
@@ -809,8 +809,8 @@ RegisterNuiCallback('submitCharges', function(data, cb)
             SendNUIMessage(json.encode({ 
                 action = 'jailStatus', 
                 data = { 
-                    status = 'failed',
-                    message = result and result.message or 'Unknown error',
+                    status = locale('jail_failed'),
+                    message = result and result.message or locale('notification_unknown_error'),
                     citizenName = citizenName
                 } 
             }))
@@ -826,7 +826,7 @@ RegisterNuiCallback('submitCharges', function(data, cb)
             SendNUIMessage(json.encode({ 
                 action = 'jailStatus', 
                 data = { 
-                    status = 'completed',
+                    status = locale('jail_completed'),
                     message = result.message,
                     totalJailtime = result.totalJailtime,
                     totalServed = result.totalServed,
@@ -837,8 +837,8 @@ RegisterNuiCallback('submitCharges', function(data, cb)
             SendNUIMessage(json.encode({ 
                 action = 'jailStatus', 
                 data = { 
-                    status = 'failed',
-                    message = result and result.message or 'Unknown error'
+                    status = locale('jail_failed'),
+                    message = result and result.message or locale('notification_unknown_error')
                 } 
             }))
         end

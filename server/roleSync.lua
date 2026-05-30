@@ -193,20 +193,20 @@ RegisterNetEvent('rsg-mdt:roleSync:validateLocalState', function(localRole)
             TriggerClientEvent('rsg-mdt:roleSync:stateMismatch', src, {
                 localState = localRole,
                 serverState = serverRole,
-                message = 'Local role state differs from server authority'
+                message = locale('role_state_mismatch')
             })
         end
     elseif localRole and not serverRole then
         TriggerClientEvent('rsg-mdt:roleSync:stateMismatch', src, {
             localState = localRole,
             serverState = nil,
-            message = 'Local role exists but server has no record'
+            message = locale('role_local_no_server')
         })
     elseif not localRole and serverRole then
         TriggerClientEvent('rsg-mdt:roleSync:stateMismatch', src, {
             localState = nil,
             serverState = serverRole,
-            message = 'Server has role but local state is empty'
+            message = locale('role_server_no_local')
         })
     end
 end)
@@ -219,13 +219,13 @@ RegisterNetEvent('rsg-mdt:roleSync:adminForceRefresh', function()
         forceRefreshAllRoles()
         TriggerClientEvent('rsg-mdt:roleSync:refreshComplete', src, {
             success = true,
-            message = 'All roles refreshed successfully',
+            message = locale('role_refresh_success'),
             configVersion = ConfigVersion
         })
     else
         TriggerClientEvent('rsg-mdt:roleSync:refreshComplete', src, {
             success = false,
-            message = 'Admin permission required'
+            message = locale('role_refresh_denied')
         })
     end
 end)

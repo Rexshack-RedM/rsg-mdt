@@ -97,7 +97,7 @@ end)
 
 lib.callback.register('rsg-mdt:server:addChargeTemplate', function(source, data)
     if not hasAdminPermission(source) then
-        return { success = false, message = 'Only administrators can create charge templates' }
+        return { success = false, message = locale('notification_charge_permission') }
     end
     
     local name = data.name
@@ -107,12 +107,12 @@ lib.callback.register('rsg-mdt:server:addChargeTemplate', function(source, data)
     local category = data.category or 'misdemeanor'
     
     if not name or #name < 2 then
-        return { success = false, message = 'Charge name is required (min 2 characters)' }
+        return { success = false, message = locale('notification_charge_name_required') }
     end
     
     local existing = MySQL.query.await("SELECT id FROM mdt_charge_templates WHERE name = ?", { name })
     if existing and existing[1] then
-        return { success = false, message = 'A charge template with this name already exists' }
+        return { success = false, message = locale('notification_charge_exists') }
     end
     
     local player = RSGCore.Functions.GetPlayer(source)
@@ -137,12 +137,12 @@ lib.callback.register('rsg-mdt:server:addChargeTemplate', function(source, data)
         return { success = true, id = insertId }
     end
     
-    return { success = false, message = 'Failed to create charge template' }
+    return { success = false, message = locale('notification_failed_create_charge') }
 end)
 
 lib.callback.register('rsg-mdt:server:updateChargeTemplate', function(source, data)
     if not hasAdminPermission(source) then
-        return { success = false, message = 'Only administrators can update charge templates' }
+        return { success = false, message = locale('notification_charge_permission') }
     end
     
     local id = tonumber(data.id)
@@ -153,12 +153,12 @@ lib.callback.register('rsg-mdt:server:updateChargeTemplate', function(source, da
     local category = data.category
     
     if not id then
-        return { success = false, message = 'Charge template ID is required' }
+        return { success = false, message = locale('notification_charge_id_required') }
     end
     
     local existing = MySQL.query.await("SELECT name FROM mdt_charge_templates WHERE id = ?", { id })
     if not existing or not existing[1] then
-        return { success = false, message = 'Charge template not found' }
+        return { success = false, message = locale('notification_charge_not_found') }
     end
     
     local oldName = existing[1].name
@@ -182,22 +182,22 @@ lib.callback.register('rsg-mdt:server:updateChargeTemplate', function(source, da
         return { success = true }
     end
     
-    return { success = false, message = 'Failed to update charge template' }
+    return { success = false, message = locale('notification_failed_update_charge') }
 end)
 
 lib.callback.register('rsg-mdt:server:deleteChargeTemplate', function(source, id)
     if not hasAdminPermission(source) then
-        return { success = false, message = 'Only administrators can delete charge templates' }
+        return { success = false, message = locale('notification_charge_permission') }
     end
     
     id = tonumber(id)
     if not id then
-        return { success = false, message = 'Charge template ID is required' }
+        return { success = false, message = locale('notification_charge_id_required') }
     end
     
     local template = MySQL.query.await("SELECT name FROM mdt_charge_templates WHERE id = ?", { id })
     if not template or not template[1] then
-        return { success = false, message = 'Charge template not found' }
+        return { success = false, message = locale('notification_charge_not_found') }
     end
     
     local templateName = template[1].name
@@ -212,12 +212,12 @@ lib.callback.register('rsg-mdt:server:deleteChargeTemplate', function(source, id
         return { success = true }
     end
     
-    return { success = false, message = 'Failed to delete charge template' }
+    return { success = false, message = locale('notification_failed_delete_charge') }
 end)
 
 lib.callback.register('rsg-mdt:server:issueCharges', function(source, data)
     if not hasCreateRecordsPermission(source) then
-        return { success = false, message = 'You do not have permission to issue charges' }
+        return { success = false, message = locale('notification_issue_permission') }
     end
     
     local citizenid = data.citizenid
@@ -225,7 +225,7 @@ lib.callback.register('rsg-mdt:server:issueCharges', function(source, data)
     local reportId = data.reportId
     
     if not citizenid or not charges or #charges == 0 then
-        return { success = false, message = 'Citizen ID and at least one charge are required' }
+        return { success = false, message = locale('notification_citizen_and_charge_required') }
     end
     
     local targetPlayer = RSGCore.Functions.GetPlayerByCitizenId(citizenid)
@@ -239,13 +239,13 @@ lib.callback.register('rsg-mdt:server:issueCharges', function(source, data)
             local charinfo = json.decode(result[1].charinfo)
             citizenName = charinfo.firstname .. ' ' .. charinfo.lastname
         else
-            return { success = false, message = 'Citizen not found' }
+            return { success = false, message = locale('notification_citizen_not_found') }
         end
     end
     
     local player = RSGCore.Functions.GetPlayer(source)
     if not player then
-        return { success = false, message = 'Officer not found' }
+        return { success = false, message = locale('notification_officer_not_found') }
     end
     
     local officerName = player.PlayerData.charinfo.firstname .. ' ' .. player.PlayerData.charinfo.lastname
@@ -300,7 +300,7 @@ lib.callback.register('rsg-mdt:server:issueCharges', function(source, data)
             local targetSource = targetPlayer.PlayerData.source
             TriggerClientEvent('rsg-mdt:client:notify', targetSource, {
                 type = 'warning',
-                message = #issuedCharges .. ' charge(s) issued. Fine: $' .. totalFine .. ', Jail: ' .. totalJailtime .. ' months'
+                message = locale('notification_charges_notification', #issuedCharges, totalFine, totalJailtime)
             })
         end
         
@@ -313,7 +313,7 @@ lib.callback.register('rsg-mdt:server:issueCharges', function(source, data)
         
         return {
             success = true,
-            message = #issuedCharges .. ' charge(s) issued to ' .. citizenName,
+            message = locale('notification_charges_issued', #issuedCharges, citizenName),
             issuedCharges = issuedCharges,
             totalFine = totalFine,
             totalJailtime = totalJailtime,
@@ -321,12 +321,12 @@ lib.callback.register('rsg-mdt:server:issueCharges', function(source, data)
         }
     end
     
-    return { success = false, message = 'Failed to issue charges' }
+    return { success = false, message = locale('notification_failed_issue_charges') }
 end)
 
 lib.callback.register('rsg-mdt:server:submitCharges', function(source, data)
     if not hasCreateRecordsPermission(source) then
-        return { success = false, message = 'You do not have permission to issue charges' }
+        return { success = false, message = locale('notification_issue_permission') }
     end
     
     local citizenid = data.citizenid
@@ -335,7 +335,7 @@ lib.callback.register('rsg-mdt:server:submitCharges', function(source, data)
     local attachedReportIds = data.attachedReportIds or {}
     
     if not citizenid or not charges or #charges == 0 then
-        return { success = false, message = 'Citizen ID and at least one charge are required' }
+        return { success = false, message = locale('notification_citizen_and_charge_required') }
     end
     
     local targetPlayer = targetPlayerId and RSGCore.Functions.GetPlayer(tonumber(targetPlayerId)) or nil
@@ -353,13 +353,13 @@ lib.callback.register('rsg-mdt:server:submitCharges', function(source, data)
             local charinfo = json.decode(result[1].charinfo)
             citizenName = charinfo.firstname .. ' ' .. charinfo.lastname
         else
-            return { success = false, message = 'Citizen not found' }
+            return { success = false, message = locale('notification_citizen_not_found') }
         end
     end
     
     local player = RSGCore.Functions.GetPlayer(source)
     if not player then
-        return { success = false, message = 'Officer not found' }
+        return { success = false, message = locale('notification_officer_not_found') }
     end
     
     local officerName = player.PlayerData.charinfo.firstname .. ' ' .. player.PlayerData.charinfo.lastname
@@ -395,7 +395,7 @@ lib.callback.register('rsg-mdt:server:submitCharges', function(source, data)
     end
     
     if #issuedCharges == 0 then
-        return { success = false, message = 'Failed to issue charges' }
+        return { success = false, message = locale('notification_failed_issue_charges') }
     end
     
     local chargeIds = {}
@@ -444,7 +444,7 @@ lib.callback.register('rsg-mdt:server:submitCharges', function(source, data)
         
         TriggerClientEvent('rsg-mdt:client:notify', targetSource, {
             type = 'warning',
-            message = #issuedCharges .. ' charge(s) committed. Jail: ' .. jailMinutes .. ' minutes'
+            message = locale('notification_charges_committed_notification', #issuedCharges, jailMinutes)
         })
     end
     
@@ -475,9 +475,9 @@ lib.callback.register('rsg-mdt:server:submitCharges', function(source, data)
     
     local message
     if jailed then
-        message = #issuedCharges .. ' charge(s) committed. ' .. citizenName .. ' sent to jail for ' .. jailMinutes .. ' minutes.'
+        message = locale('notification_charges_comitted', #issuedCharges, citizenName, jailMinutes)
     else
-        message = #issuedCharges .. ' charge(s) issued to ' .. citizenName
+        message = locale('notification_charges_issued', #issuedCharges, citizenName)
     end
     
     return {
@@ -613,19 +613,19 @@ end)
 
 lib.callback.register('rsg-mdt:server:jailPlayer', function(source, data)
     if not hasCreateRecordsPermission(source) then
-        return { success = false, message = 'You do not have permission to jail players' }
+        return { success = false, message = locale('notification_jail_permission') }
     end
     
     local targetPlayer = RSGCore.Functions.GetPlayerByCitizenId(data.citizenid)
     if not targetPlayer then
-        return { success = false, message = 'Player is not online' }
+        return { success = false, message = locale('notification_player_online_required') }
     end
     
     local targetSource = targetPlayer.PlayerData.source
     local minutes = tonumber(data.minutes) or 0
     
     if minutes <= 0 then
-        return { success = false, message = 'Invalid jail time' }
+        return { success = false, message = locale('notification_invalid_jail_time') }
     end
     
     targetPlayer.Functions.SetMetaData('injail', minutes)
@@ -642,7 +642,7 @@ lib.callback.register('rsg-mdt:server:jailPlayer', function(source, data)
         reason = data.reason
     })
     
-    return { success = true, message = 'Player sent to jail' }
+    return { success = true, message = locale('notification_player_jailed') }
 end)
 
 lib.callback.register('rsg-mdt:server:getJailConfig', function(source)
@@ -687,7 +687,7 @@ end)
 
 lib.callback.register('rsg-mdt:server:commitCharges', function(source, data)
     if not hasCreateRecordsPermission(source) then
-        return { success = false, message = 'You do not have permission to issue charges' }
+        return { success = false, message = locale('notification_issue_permission') }
     end
     
     local citizenid = data.citizenid
@@ -697,20 +697,20 @@ lib.callback.register('rsg-mdt:server:commitCharges', function(source, data)
     local attachedReportIds = data.attachedReportIds or {}
     
     if not citizenid or not charges or #charges == 0 then
-        return { success = false, message = 'Citizen ID and at least one charge are required' }
+        return { success = false, message = locale('notification_citizen_and_charge_required') }
     end
     
     if not targetPlayerId then
-        return { success = false, message = 'Player is not online' }
+        return { success = false, message = locale('notification_player_online_required') }
     end
     
     if totalJailtimeMonths <= 0 then
-        return { success = false, message = 'No jail time in selected charges' }
+        return { success = false, message = locale('notification_invalid_jail_time') }
     end
     
     local targetPlayer = RSGCore.Functions.GetPlayer(tonumber(targetPlayerId))
     if not targetPlayer then
-        return { success = false, message = 'Player is not online' }
+        return { success = false, message = locale('notification_player_online_required') }
     end
     
     local targetSource = targetPlayer.PlayerData.source
@@ -718,7 +718,7 @@ lib.callback.register('rsg-mdt:server:commitCharges', function(source, data)
     
     local player = RSGCore.Functions.GetPlayer(source)
     if not player then
-        return { success = false, message = 'Officer not found' }
+        return { success = false, message = locale('notification_officer_not_found') }
     end
     
     local officerName = player.PlayerData.charinfo.firstname .. ' ' .. player.PlayerData.charinfo.lastname
@@ -754,7 +754,7 @@ lib.callback.register('rsg-mdt:server:commitCharges', function(source, data)
     end
     
     if #issuedCharges == 0 then
-        return { success = false, message = 'Failed to issue charges' }
+        return { success = false, message = locale('notification_failed_issue_charges') }
     end
     
     local chargeIds = {}
@@ -801,7 +801,7 @@ lib.callback.register('rsg-mdt:server:commitCharges', function(source, data)
     
     TriggerClientEvent('rsg-mdt:client:notify', targetSource, {
         type = 'warning',
-        message = #issuedCharges .. ' charge(s) committed. Fine: $' .. totalFine .. ', Jail: ' .. jailMinutes .. ' minutes'
+        message = locale('notification_charges_committed_notification', #issuedCharges, jailMinutes)
     })
     
     broadcastToOfficers('rsg-mdt:client:chargesUpdated', { 
@@ -816,7 +816,7 @@ lib.callback.register('rsg-mdt:server:commitCharges', function(source, data)
     
     return {
         success = true,
-        message = #issuedCharges .. ' charge(s) committed. ' .. citizenName .. ' sent to jail for ' .. jailMinutes .. ' minutes.',
+        message = locale('notification_charges_comitted', #issuedCharges, citizenName, jailMinutes),
         issuedCharges = issuedCharges,
         totalFine = totalFine,
         totalJailtime = tonumber(totalsData.total_jailtime) or 0,
