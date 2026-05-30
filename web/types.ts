@@ -328,4 +328,5 @@ export interface JailStatus {
   jailed?: boolean;
   totalJailtime?: number;
   totalServed?: number;
+  citizenName?: string;
 }

@@ -146,6 +146,7 @@ export function IssueChargesModal({ citizenid, citizenName, onClose, onIssued, t
       {
         citizenid,
         targetPlayerId,
+        citizenName,
         charges: selectedCharges.map(c => ({
           templateId: c.id,
           name: c.name,

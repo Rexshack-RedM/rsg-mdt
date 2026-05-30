@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { isDebug, useNuiEvent, fetchNui } from './hooks/useNui';
-import type { Officer, Stats } from './types';
+import type { Officer, Stats, JailStatus, JailConfig } from './types';
 import { Window } from './components/Window';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './pages/Dashboard';
@@ -10,6 +10,7 @@ import { Warrants } from './pages/Warrants';
 import { Bolos } from './pages/Bolos';
 import { Reports } from './pages/Reports';
 import { StaffManagement } from './pages/StaffManagement';
+import { JailProcessingOverlay } from './components/JailProcessingOverlay';
 
 type Page = 'dashboard' | 'citizens' | 'records' | 'warrants' | 'bolos' | 'reports' | 'staff';
 
@@ -42,6 +43,8 @@ export default function App() {
   const [warrantPrefill, setWarrantPrefill] = useState<WarrantPrefill | null>(null);
   const [viewingReportId, setViewingReportId] = useState<number | null>(null);
   const [viewingChargeId, setViewingChargeId] = useState<number | null>(null);
+  const [jailStatus, setJailStatus] = useState<JailStatus>({ status: 'idle' });
+  const [jailConfig, setJailConfig] = useState<JailConfig | null>(null);
 
   useNuiEvent<Officer & { permissions?: Permissions; window?: WindowConfig }>('open', (data) => {
     setOfficer(data);
@@ -55,6 +58,41 @@ export default function App() {
   });
 
   useNuiEvent('close', () => setVisible(false));
+
+  useNuiEvent<JailStatus>('jailStatus', (data) => {
+    setJailStatus(data);
+    if (data.status === 'completed') {
+      setTimeout(() => {
+        setVisible(false);
+        fetchNui('close', {}, { success: true });
+        setJailStatus({ status: 'idle' });
+      }, 1500);
+    }
+    if (data.status === 'failed' || data.status === 'cancelled') {
+      setTimeout(() => {
+        setJailStatus({ status: 'idle' });
+      }, 3000);
+    }
+  });
+
+  useEffect(() => {
+    if (visible) {
+      fetchNui<JailConfig>('getJailConfig', {}, {
+        delaySeconds: 5,
+        maxDistance: 10.0,
+        jailCoords: { x: 0, y: 0, z: 0 },
+        jailHeading: 0,
+        enabled: true,
+        minutesPerMonth: 1,
+        maxJailDistance: 100.0
+      }).then(setJailConfig);
+    }
+  }, [visible]);
+
+  const handleAbortJail = useCallback(async () => {
+    await fetchNui('abortJail', {}, { success: true });
+    setJailStatus({ status: 'idle' });
+  }, []);
 
   const handleClose = useCallback(() => {
     setVisible(false);
@@ -147,6 +185,13 @@ export default function App() {
           </div>
         </div>
       </Window>
+
+      <JailProcessingOverlay
+        status={jailStatus}
+        config={jailConfig}
+        citizenName={jailStatus.citizenName || 'Suspect'}
+        onAbort={handleAbortJail}
+      />
     </div>
   );
 }

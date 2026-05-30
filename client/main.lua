@@ -1,8 +1,27 @@
 local RSGCore = exports['rsg-core']:GetCoreObject()
 local isOpen = false
 
+local function startNotebookAnimation()
+    local ped = PlayerPedId()
+    ClearPedTasks(ped, true, true)
+    Wait(100)
+    TaskStartScenarioInPlace(ped, joaat('WORLD_HUMAN_WRITE_NOTEBOOK'), -1, true, false, 0, false, 0)
+end
+
+local function stopNotebookAnimation()
+    local ped = PlayerPedId()
+    ClearPedTasks(ped, true, true)
+end
+
 local function setIsOpen(value)
+    if isOpen == value then return end
     isOpen = value
+    
+    if isOpen then
+        startNotebookAnimation()
+    else
+        stopNotebookAnimation()
+    end
 end
 
 -- ============================================
@@ -104,6 +123,12 @@ RegisterNetEvent('RSGCore:Player:SetPlayerData', function(data)
     if data.job then
         Wait(500)
         RefreshMDTAccess()
+    end
+end)
+
+AddEventHandler('onClientResourceStop', function(resourceName)
+    if resourceName == GetCurrentResourceName() and isOpen then
+        stopNotebookAnimation()
     end
 end)
 
@@ -665,6 +690,17 @@ RegisterNuiCallback('getCitizenJailTotals', function(data, cb)
     cb(totals or { totalJailtime = 0, totalServed = 0, outstanding = 0, charges = {} })
 end)
 
+RegisterNuiCallback('abortJail', function(_, cb)
+    if jailInProgress then
+        jailInProgress = false
+        SendNUIMessage(json.encode({ 
+            action = 'jailStatus', 
+            data = { status = 'cancelled', message = 'Sentencing aborted by officer' } 
+        }))
+    end
+    cb({ success = true })
+end)
+
 RegisterNuiCallback('submitCharges', function(data, cb)
     local hasJailTime = data.totalJailtime and data.totalJailtime > 0
     local targetPlayerId = data.targetPlayerId
@@ -702,9 +738,11 @@ RegisterNuiCallback('submitCharges', function(data, cb)
         
         jailInProgress = true
         
+        local citizenName = data.citizenName or 'Suspect'
+        
         SendNUIMessage(json.encode({ 
             action = 'jailStatus', 
-            data = { status = 'processing', remaining = config.delaySeconds } 
+            data = { status = 'processing', remaining = config.delaySeconds, citizenName = citizenName } 
         }))
         
         local delayMs = config.delaySeconds * 1000
@@ -724,17 +762,17 @@ RegisterNuiCallback('submitCharges', function(data, cb)
             local checkDist = checkPed and #(currentCoords - GetEntityCoords(checkPed)) or 999
             
             if checkDist > config.maxDistance then
-                SendNUIMessage(json.encode({ 
-                    action = 'jailStatus', 
-                    data = { status = 'cancelled', message = 'Target moved out of range' } 
-                }))
+            SendNUIMessage(json.encode({ 
+                action = 'jailStatus', 
+                data = { status = 'cancelled', message = 'Target moved out of range', citizenName = citizenName } 
+            }))
                 jailInProgress = false
                 return
             end
             
             SendNUIMessage(json.encode({ 
                 action = 'jailStatus', 
-                data = { status = 'processing', remaining = remaining } 
+                data = { status = 'processing', remaining = remaining, citizenName = citizenName } 
             }))
             
             Wait(500)
@@ -754,7 +792,8 @@ RegisterNuiCallback('submitCharges', function(data, cb)
                     message = result.message,
                     totalJailtime = result.totalJailtime,
                     totalServed = result.totalServed,
-                    jailed = result.jailed
+                    jailed = result.jailed,
+                    citizenName = citizenName
                 } 
             }))
             
@@ -771,7 +810,8 @@ RegisterNuiCallback('submitCharges', function(data, cb)
                 action = 'jailStatus', 
                 data = { 
                     status = 'failed',
-                    message = result and result.message or 'Unknown error'
+                    message = result and result.message or 'Unknown error',
+                    citizenName = citizenName
                 } 
             }))
         end
