@@ -4,8 +4,6 @@ local isOpen = false
 local function startNotebookAnimation()
     local ped = PlayerPedId()
     ClearPedTasks(ped, true, true)
-    Wait(100)
-    TaskStartScenarioInPlace(ped, joaat('WORLD_HUMAN_WRITE_NOTEBOOK'), -1, true, false, 0, false, 0)
 end
 
 local function stopNotebookAnimation()

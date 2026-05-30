@@ -1,46 +1,5 @@
 local RSGCore = exports['rsg-core']:GetCoreObject()
 
-local FinesDatabaseReady = false
-
-local function initializeFinesDatabase()
-    MySQL.query.await([[
-        CREATE TABLE IF NOT EXISTS mdt_fines (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            citizenid VARCHAR(50) NOT NULL,
-            citizen_name VARCHAR(100) NOT NULL,
-            issued_charge_ids JSON,
-            total_amount INT NOT NULL DEFAULT 0,
-            due_date TIMESTAMP NULL,
-            status ENUM('unpaid', 'paid', 'overdue') DEFAULT 'unpaid',
-            issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            paid_at TIMESTAMP NULL,
-            officer_name VARCHAR(100),
-            officer_cid VARCHAR(50),
-            paid_to_officer VARCHAR(100),
-            INDEX idx_citizenid (citizenid),
-            INDEX idx_status (status),
-            INDEX idx_due_date (due_date)
-        )
-    ]])
-
-    FinesDatabaseReady = true
-end
-
-CreateThread(function()
-    Wait(2000)
-    initializeFinesDatabase()
-end)
-
-local function waitForFinesDatabase()
-    local timeout = 5000
-    local waited = 0
-    while not FinesDatabaseReady and waited < timeout do
-        Wait(100)
-        waited = waited + 100
-    end
-    return FinesDatabaseReady
-end
-
 local function getGracePeriodDays()
     return Config.Fines and Config.Fines.gracePeriodDays or 7
 end
@@ -90,8 +49,6 @@ local function broadcastToOfficers(event, data)
 end
 
 local function createOrUpdateFine(citizenid, citizenName, chargeIds, totalAmount, officerName, officerCid)
-    if not waitForFinesDatabase() then return nil end
-
     local existingFine = MySQL.query.await(
         "SELECT id, issued_charge_ids, total_amount FROM mdt_fines WHERE citizenid = ? AND status = 'unpaid'",
         { citizenid }
@@ -129,8 +86,6 @@ end
 exports('createOrUpdateFine', createOrUpdateFine)
 
 local function getCitizenFines(citizenid)
-    if not waitForFinesDatabase() then return {} end
-    
     local fines = MySQL.query.await(
         "SELECT * FROM mdt_fines WHERE citizenid = ? ORDER BY issued_at DESC",
         { citizenid }
@@ -142,8 +97,6 @@ end
 exports('getCitizenFines', getCitizenFines)
 
 local function getUnpaidFines(citizenid)
-    if not waitForFinesDatabase() then return {} end
-    
     local fines = MySQL.query.await(
         "SELECT * FROM mdt_fines WHERE citizenid = ? AND status IN ('unpaid', 'overdue') ORDER BY due_date ASC",
         { citizenid }
@@ -155,8 +108,6 @@ end
 exports('getUnpaidFines', getUnpaidFines)
 
 local function checkOverdueFines()
-    if not waitForFinesDatabase() then return end
-    
     MySQL.update.await(
         "UPDATE mdt_fines SET status = 'overdue' WHERE status = 'unpaid' AND due_date < NOW()"
     )
@@ -171,7 +122,6 @@ end)
 
 lib.callback.register('rsg-mdt:server:getCitizenFines', function(source, citizenid)
     if not hasCreateRecordsPermission(source) then return {} end
-    if not waitForFinesDatabase() then return {} end
     
     local fines = MySQL.query.await(
         "SELECT * FROM mdt_fines WHERE citizenid = ? ORDER BY issued_at DESC",
@@ -188,8 +138,6 @@ lib.callback.register('rsg-mdt:server:getCitizenFines', function(source, citizen
 end)
 
 lib.callback.register('rsg-mdt:server:getUnpaidFines', function(source, citizenid)
-    if not waitForFinesDatabase() then return {} end
-    
     local fines = MySQL.query.await(
         "SELECT * FROM mdt_fines WHERE citizenid = ? AND status IN ('unpaid', 'overdue') ORDER BY due_date ASC",
         { citizenid }
@@ -205,10 +153,6 @@ lib.callback.register('rsg-mdt:server:getUnpaidFines', function(source, citizeni
 end)
 
 lib.callback.register('rsg-mdt:server:payFine', function(source, fineId)
-    if not waitForFinesDatabase() then 
-        return { success = false, message = 'Database not ready' }
-    end
-    
     fineId = tonumber(fineId)
     if not fineId then
         return { success = false, message = 'Invalid fine ID' }
@@ -275,8 +219,6 @@ lib.callback.register('rsg-mdt:server:payFine', function(source, fineId)
 end)
 
 lib.callback.register('rsg-mdt:server:getPlayerFines', function(source)
-    if not waitForFinesDatabase() then return {} end
-    
     local player = RSGCore.Functions.GetPlayer(source)
     if not player then return {} end
     
@@ -298,8 +240,6 @@ lib.callback.register('rsg-mdt:server:getPlayerFines', function(source)
 end)
 
 lib.callback.register('rsg-mdt:server:hasUnpaidFines', function(source)
-    if not waitForFinesDatabase() then return false end
-    
     local player = RSGCore.Functions.GetPlayer(source)
     if not player then return false end
     
@@ -312,8 +252,6 @@ lib.callback.register('rsg-mdt:server:hasUnpaidFines', function(source)
 end)
 
 lib.callback.register('rsg-mdt:server:getUnpaidFinesCount', function(source, citizenid)
-    if not waitForFinesDatabase() then return 0 end
-    
     local query = citizenid 
         and "SELECT COUNT(*) as count FROM mdt_fines WHERE citizenid = ? AND status IN ('unpaid', 'overdue')"
         or "SELECT COUNT(*) as count FROM mdt_fines WHERE status IN ('unpaid', 'overdue')"
@@ -326,7 +264,6 @@ end)
 
 lib.callback.register('rsg-mdt:server:getAllUnpaidFines', function(source)
     if not hasCreateRecordsPermission(source) then return {} end
-    if not waitForFinesDatabase() then return {} end
     
     local fines = MySQL.query.await(
         "SELECT * FROM mdt_fines WHERE status IN ('unpaid', 'overdue') ORDER BY due_date ASC LIMIT 500"
@@ -357,10 +294,6 @@ end)
 lib.callback.register('rsg-mdt:server:markFinePaid', function(source, fineId)
     if not hasCreateRecordsPermission(source) then
         return { success = false, message = 'No permission to mark fines as paid' }
-    end
-    
-    if not waitForFinesDatabase() then
-        return { success = false, message = 'Database not ready' }
     end
     
     fineId = tonumber(fineId)

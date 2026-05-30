@@ -1,42 +1,5 @@
 local RSGCore = exports['rsg-core']:GetCoreObject()
 
-local AttachmentsDatabaseReady = false
-
-local function initializeAttachmentsDatabase()
-    MySQL.query.await([[
-        CREATE TABLE IF NOT EXISTS mdt_charge_attachments (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            charge_id INT NOT NULL,
-            report_id INT NOT NULL,
-            attached_by VARCHAR(50) NOT NULL,
-            attached_by_name VARCHAR(100) NOT NULL,
-            attached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_charge_report (charge_id, report_id),
-            INDEX idx_charge_id (charge_id),
-            INDEX idx_report_id (report_id),
-            FOREIGN KEY (charge_id) REFERENCES mdt_issued_charges(id) ON DELETE CASCADE,
-            FOREIGN KEY (report_id) REFERENCES mdt_reports(id) ON DELETE CASCADE
-        )
-    ]])
-
-    AttachmentsDatabaseReady = true
-end
-
-CreateThread(function()
-    Wait(2000)
-    initializeAttachmentsDatabase()
-end)
-
-local function waitForAttachmentsDatabase()
-    local timeout = 5000
-    local waited = 0
-    while not AttachmentsDatabaseReady and waited < timeout do
-        Wait(100)
-        waited = waited + 100
-    end
-    return AttachmentsDatabaseReady
-end
-
 local function hasCreateRecordsPermission(source)
     local player = RSGCore.Functions.GetPlayer(source)
     if not player then return false end
@@ -67,7 +30,6 @@ local function logAttachmentAction(source, action, chargeId, reportId, details)
 end
 
 lib.callback.register('rsg-mdt:server:getAvailableReportsForAttachment', function(source, searchQuery)
-    if not waitForAttachmentsDatabase() then return {} end
     if not hasCreateRecordsPermission(source) then return {} end
     
     local query
@@ -98,9 +60,6 @@ lib.callback.register('rsg-mdt:server:getAvailableReportsForAttachment', functio
 end)
 
 lib.callback.register('rsg-mdt:server:attachReportsToCharge', function(source, data)
-    if not waitForAttachmentsDatabase() then
-        return { success = false, message = 'Database not ready' }
-    end
     if not hasCreateRecordsPermission(source) then
         return { success = false, message = 'You do not have permission to attach reports' }
     end
@@ -185,9 +144,6 @@ lib.callback.register('rsg-mdt:server:attachReportsToCharge', function(source, d
 end)
 
 lib.callback.register('rsg-mdt:server:removeAttachmentFromCharge', function(source, data)
-    if not waitForAttachmentsDatabase() then
-        return { success = false, message = 'Database not ready' }
-    end
     if not hasCreateRecordsPermission(source) then
         return { success = false, message = 'You do not have permission to remove attachments' }
     end
@@ -213,8 +169,6 @@ lib.callback.register('rsg-mdt:server:removeAttachmentFromCharge', function(sour
 end)
 
 lib.callback.register('rsg-mdt:server:getChargeAttachments', function(source, chargeId)
-    if not waitForAttachmentsDatabase() then return {} end
-    
     chargeId = tonumber(chargeId)
     if not chargeId then return {} end
     
@@ -240,8 +194,6 @@ lib.callback.register('rsg-mdt:server:getChargeAttachments', function(source, ch
 end)
 
 lib.callback.register('rsg-mdt:server:getReportsWithCharges', function(source, reportId)
-    if not waitForAttachmentsDatabase() then return {} end
-    
     reportId = tonumber(reportId)
     if not reportId then return {} end
     
@@ -266,8 +218,6 @@ lib.callback.register('rsg-mdt:server:getReportsWithCharges', function(source, r
 end)
 
 exports('getChargeAttachments', function(chargeId)
-    if not waitForAttachmentsDatabase() then return {} end
-    
     chargeId = tonumber(chargeId)
     if not chargeId then return {} end
     
@@ -284,8 +234,6 @@ exports('getChargeAttachments', function(chargeId)
 end)
 
 exports('getReportsWithCharges', function(reportId)
-    if not waitForAttachmentsDatabase() then return {} end
-    
     reportId = tonumber(reportId)
     if not reportId then return {} end
     

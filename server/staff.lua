@@ -7,79 +7,6 @@ local StaffPermissions = {
     'isAdmin'
 }
 
-local DatabaseReady = false
-
-local function initializeDatabase()
-    MySQL.query.await([[
-        CREATE TABLE IF NOT EXISTS mdt_staff (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            citizenid VARCHAR(50) NOT NULL UNIQUE,
-            name VARCHAR(100) NOT NULL,
-            role VARCHAR(50) DEFAULT 'officer',
-            permissions JSON,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        )
-    ]])
-
-    MySQL.query.await([[
-        CREATE TABLE IF NOT EXISTS mdt_roles (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            name VARCHAR(50) NOT NULL UNIQUE,
-            label VARCHAR(100) NOT NULL,
-            permissions JSON,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ]])
-
-    MySQL.query.await([[
-        CREATE TABLE IF NOT EXISTS mdt_audit_logs (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            action VARCHAR(50) NOT NULL,
-            target_type VARCHAR(50),
-            target_id VARCHAR(100),
-            target_name VARCHAR(100),
-            details TEXT,
-            performed_by VARCHAR(50) NOT NULL,
-            performed_by_name VARCHAR(100) NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ]])
-
-    local defaultRoles = MySQL.query.await("SELECT COUNT(*) as count FROM mdt_roles")
-    if defaultRoles and defaultRoles[1] and defaultRoles[1].count == 0 then
-        MySQL.insert.await(
-            "INSERT INTO mdt_roles (name, label, permissions) VALUES (?, ?, ?)",
-            {'admin', 'Administrator', json.encode({ canCreateRecords = true, canDeleteRecords = true, canManageWarrants = true, isAdmin = true })}
-        )
-        MySQL.insert.await(
-            "INSERT INTO mdt_roles (name, label, permissions) VALUES (?, ?, ?)",
-            {'supervisor', 'Supervisor', json.encode({ canCreateRecords = true, canDeleteRecords = true, canManageWarrants = true, isAdmin = false })}
-        )
-        MySQL.insert.await(
-            "INSERT INTO mdt_roles (name, label, permissions) VALUES (?, ?, ?)",
-            {'officer', 'Officer', json.encode({ canCreateRecords = true, canDeleteRecords = false, canManageWarrants = false, isAdmin = false })}
-        )
-    end
-    
-    DatabaseReady = true
-end
-
-local function waitForDatabase()
-    local timeout = 5000
-    local waited = 0
-    while not DatabaseReady and waited < timeout do
-        Wait(100)
-        waited = waited + 100
-    end
-    return DatabaseReady
-end
-
-CreateThread(function()
-    Wait(1000)
-    initializeDatabase()
-end)
-
 local function hasAdminPermission(source)
     local player = RSGCore.Functions.GetPlayer(source)
     if not player then return false end
@@ -187,7 +114,6 @@ end
 
 lib.callback.register('rsg-mdt:server:getStaff', function(source)
     if not hasAdminPermission(source) then return {} end
-    if not waitForDatabase() then return {} end
     
     local staff = MySQL.query.await([[
         SELECT s.id, s.citizenid, s.name, s.role, s.permissions, s.created_at, s.updated_at,
@@ -226,7 +152,6 @@ end)
 
 lib.callback.register('rsg-mdt:server:getRoles', function(source)
     if not hasAdminPermission(source) then return {} end
-    if not waitForDatabase() then return {} end
     
     local roles = MySQL.query.await("SELECT * FROM mdt_roles ORDER BY name")
     
@@ -243,7 +168,6 @@ end)
 
 lib.callback.register('rsg-mdt:server:addStaff', function(source, data)
     if not hasAdminPermission(source) then return { success = false, message = 'Permission denied' } end
-    if not waitForDatabase() then return { success = false, message = 'Database not ready' } end
     
     local citizenid = data.citizenid
     local role = data.role or 'officer'
@@ -290,7 +214,6 @@ end)
 
 lib.callback.register('rsg-mdt:server:removeStaff', function(source, citizenid)
     if not hasAdminPermission(source) then return { success = false, message = 'Permission denied' } end
-    if not waitForDatabase() then return { success = false, message = 'Database not ready' } end
     
     if not citizenid then
         return { success = false, message = 'Citizen ID is required' }
@@ -318,7 +241,6 @@ end)
 
 lib.callback.register('rsg-mdt:server:updateStaffPermissions', function(source, data)
     if not hasAdminPermission(source) then return { success = false, message = 'Permission denied' } end
-    if not waitForDatabase() then return { success = false, message = 'Database not ready' } end
     
     local citizenid = data.citizenid
     local role = data.role
@@ -364,7 +286,6 @@ end)
 
 lib.callback.register('rsg-mdt:server:createRole', function(source, data)
     if not hasAdminPermission(source) then return { success = false, message = 'Permission denied' } end
-    if not waitForDatabase() then return { success = false, message = 'Database not ready' } end
     
     local name = data.name
     local label = data.label
@@ -397,7 +318,6 @@ end)
 
 lib.callback.register('rsg-mdt:server:updateRole', function(source, data)
     if not hasAdminPermission(source) then return { success = false, message = 'Permission denied' } end
-    if not waitForDatabase() then return { success = false, message = 'Database not ready' } end
     
     local name = data.name
     local label = data.label
@@ -425,7 +345,6 @@ end)
 
 lib.callback.register('rsg-mdt:server:deleteRole', function(source, roleName)
     if not hasAdminPermission(source) then return { success = false, message = 'Permission denied' } end
-    if not waitForDatabase() then return { success = false, message = 'Database not ready' } end
     
     if roleName == 'admin' or roleName == 'supervisor' or roleName == 'officer' then
         return { success = false, message = 'Cannot delete default roles' }
@@ -451,7 +370,6 @@ end)
 
 lib.callback.register('rsg-mdt:server:getAuditLogs', function(source, data)
     if not hasAdminPermission(source) then return {} end
-    if not waitForDatabase() then return {} end
     
     local limit = data and data.limit or 100
     local offset = data and data.offset or 0
@@ -487,7 +405,6 @@ end)
 
 lib.callback.register('rsg-mdt:server:searchCitizensForStaff', function(source, query)
     if not hasAdminPermission(source) then return {} end
-    if not waitForDatabase() then return {} end
     
     query = string.lower(query or '')
     if #query < 2 then return {} end
@@ -518,9 +435,6 @@ end)
 lib.callback.register('rsg-mdt:server:assignLawJob', function(source, data)
     if not hasAdminPermission(source) then
         return { success = false, message = 'Permission denied' }
-    end
-    if not waitForDatabase() then
-        return { success = false, message = 'Database not ready' }
     end
     
     local targetCitizenid = data.citizenid
@@ -697,9 +611,6 @@ lib.callback.register('rsg-mdt:server:updateOfficerDepartment', function(source,
     if not hasAdminPermission(source) then
         return { success = false, message = 'Permission denied' }
     end
-    if not waitForDatabase() then
-        return { success = false, message = 'Database not ready' }
-    end
     
     local targetCitizenid = data.citizenid
     local newJobName = data.job
@@ -807,7 +718,6 @@ end)
 
 lib.callback.register('rsg-mdt:server:getOfficers', function(source)
     if not hasAdminPermission(source) then return {} end
-    if not waitForDatabase() then return {} end
     
     local staff = MySQL.query.await([[
         SELECT s.citizenid, s.name, s.role,
@@ -868,7 +778,6 @@ end)
 
 lib.callback.register('rsg-mdt:server:getJobPlayerCounts', function(source)
     if not hasAdminPermission(source) then return {} end
-    if not waitForDatabase() then return {} end
     
     local counts = {}
     local lawJobNames = {}
@@ -911,9 +820,6 @@ end)
 lib.callback.register('rsg-mdt:server:syncStaffFromJobs', function(source, filterJob)
     if not hasAdminPermission(source) then
         return { success = false, message = 'Permission denied', added = 0 }
-    end
-    if not waitForDatabase() then
-        return { success = false, message = 'Database not ready', added = 0 }
     end
     
     local lawJobNames = {}

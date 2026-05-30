@@ -1,101 +1,5 @@
 local RSGCore = exports['rsg-core']:GetCoreObject()
 
-local ChargesDatabaseReady = false
-
-local function initializeChargesDatabase()
-    MySQL.query.await([[
-        CREATE TABLE IF NOT EXISTS mdt_charge_templates (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            name VARCHAR(255) NOT NULL,
-            description TEXT,
-            fine INT DEFAULT 0,
-            jailtime INT DEFAULT 0,
-            category VARCHAR(50) DEFAULT 'misdemeanor',
-            created_by VARCHAR(50),
-            created_by_name VARCHAR(100),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            INDEX idx_category (category),
-            INDEX idx_name (name)
-        )
-    ]])
-
-    MySQL.query.await([[
-        CREATE TABLE IF NOT EXISTS mdt_issued_charges (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            citizenid VARCHAR(50) NOT NULL,
-            citizen_name VARCHAR(100) NOT NULL,
-            charge_template_id INT,
-            charge_name VARCHAR(255) NOT NULL,
-            charge_description TEXT,
-            fine INT DEFAULT 0,
-            jailtime INT DEFAULT 0,
-            time_served INT DEFAULT 0,
-            is_served TINYINT(1) DEFAULT 0,
-            officer VARCHAR(100) NOT NULL,
-            officer_cid VARCHAR(50),
-            report_id INT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            served_at TIMESTAMP NULL,
-            INDEX idx_citizenid (citizenid),
-            INDEX idx_officer (officer),
-            INDEX idx_is_served (is_served),
-            FOREIGN KEY (charge_template_id) REFERENCES mdt_charge_templates(id) ON DELETE SET NULL
-        )
-    ]])
-
-    MySQL.query.await([[
-        ALTER TABLE mdt_issued_charges 
-        ADD COLUMN IF NOT EXISTS time_served INT DEFAULT 0 AFTER jailtime,
-        ADD COLUMN IF NOT EXISTS is_served TINYINT(1) DEFAULT 0 AFTER time_served,
-        ADD COLUMN IF NOT EXISTS served_at TIMESTAMP NULL AFTER created_at
-    ]])
-
-    local existingTemplates = MySQL.query.await("SELECT COUNT(*) as count FROM mdt_charge_templates")
-    if existingTemplates and existingTemplates[1] and existingTemplates[1].count == 0 then
-        local defaultCharges = {
-            { 'Assault', 'Physical assault on another person', 50, 2, 'felony' },
-            { 'Battery', 'Unlawful physical force against another', 75, 3, 'felony' },
-            { 'Theft', 'Stealing property valued under $50', 25, 0, 'misdemeanor' },
-            { 'Grand Theft', 'Stealing property valued $50 or more', 100, 6, 'felony' },
-            { 'Trespassing', 'Unauthorized entry onto private property', 15, 0, 'misdemeanor' },
-            { 'Public Intoxication', 'Being drunk in public', 10, 0, 'infraction' },
-            { 'Disorderly Conduct', 'Disturbing the peace', 20, 0, 'misdemeanor' },
-            { 'Vandalism', 'Willful destruction of property', 30, 0, 'misdemeanor' },
-            { 'Fraud', 'Deception for personal gain', 150, 12, 'felony' },
-            { 'Murder', 'Unlawful killing of another person', 0, 60, 'felony' },
-            { 'Horse Theft', 'Stealing a horse or other mount', 200, 24, 'felony' },
-            { 'Bank Robbery', 'Robbery of a banking institution', 500, 48, 'felony' },
-            { 'Resisting Arrest', 'Resisting or fleeing from law enforcement', 50, 1, 'misdemeanor' },
-            { 'Obstruction of Justice', 'Interfering with law enforcement duties', 40, 0, 'misdemeanor' },
-        }
-        
-        for _, charge in ipairs(defaultCharges) do
-            MySQL.insert.await(
-                "INSERT INTO mdt_charge_templates (name, description, fine, jailtime, category) VALUES (?, ?, ?, ?, ?)",
-                charge
-            )
-        end
-    end
-
-    ChargesDatabaseReady = true
-end
-
-CreateThread(function()
-    Wait(1500)
-    initializeChargesDatabase()
-end)
-
-local function waitForChargesDatabase()
-    local timeout = 5000
-    local waited = 0
-    while not ChargesDatabaseReady and waited < timeout do
-        Wait(100)
-        waited = waited + 100
-    end
-    return ChargesDatabaseReady
-end
-
 local function hasAdminPermission(source)
     local player = RSGCore.Functions.GetPlayer(source)
     if not player then return false end
@@ -184,8 +88,6 @@ local function broadcastToOfficers(event, data)
 end
 
 lib.callback.register('rsg-mdt:server:getChargeTemplates', function(source)
-    if not waitForChargesDatabase() then return {} end
-    
     local templates = MySQL.query.await(
         "SELECT * FROM mdt_charge_templates ORDER BY category, name"
     )
@@ -196,9 +98,6 @@ end)
 lib.callback.register('rsg-mdt:server:addChargeTemplate', function(source, data)
     if not hasAdminPermission(source) then
         return { success = false, message = 'Only administrators can create charge templates' }
-    end
-    if not waitForChargesDatabase() then
-        return { success = false, message = 'Database not ready' }
     end
     
     local name = data.name
@@ -245,9 +144,6 @@ lib.callback.register('rsg-mdt:server:updateChargeTemplate', function(source, da
     if not hasAdminPermission(source) then
         return { success = false, message = 'Only administrators can update charge templates' }
     end
-    if not waitForChargesDatabase() then
-        return { success = false, message = 'Database not ready' }
-    end
     
     local id = tonumber(data.id)
     local name = data.name
@@ -293,9 +189,6 @@ lib.callback.register('rsg-mdt:server:deleteChargeTemplate', function(source, id
     if not hasAdminPermission(source) then
         return { success = false, message = 'Only administrators can delete charge templates' }
     end
-    if not waitForChargesDatabase() then
-        return { success = false, message = 'Database not ready' }
-    end
     
     id = tonumber(id)
     if not id then
@@ -325,9 +218,6 @@ end)
 lib.callback.register('rsg-mdt:server:issueCharges', function(source, data)
     if not hasCreateRecordsPermission(source) then
         return { success = false, message = 'You do not have permission to issue charges' }
-    end
-    if not waitForChargesDatabase() then
-        return { success = false, message = 'Database not ready' }
     end
     
     local citizenid = data.citizenid
@@ -437,9 +327,6 @@ end)
 lib.callback.register('rsg-mdt:server:submitCharges', function(source, data)
     if not hasCreateRecordsPermission(source) then
         return { success = false, message = 'You do not have permission to issue charges' }
-    end
-    if not waitForChargesDatabase() then
-        return { success = false, message = 'Database not ready' }
     end
     
     local citizenid = data.citizenid
@@ -607,8 +494,6 @@ lib.callback.register('rsg-mdt:server:submitCharges', function(source, data)
 end)
 
 lib.callback.register('rsg-mdt:server:getIssuedCharges', function(source, citizenid)
-    if not waitForChargesDatabase() then return {} end
-    
     if not citizenid then return {} end
     
     local charges = MySQL.query.await(
@@ -655,13 +540,10 @@ lib.callback.register('rsg-mdt:server:getIssuedCharges', function(source, citize
 end)
 
 exports('getChargeTemplates', function()
-    if not waitForChargesDatabase() then return {} end
     return MySQL.query.await("SELECT * FROM mdt_charge_templates ORDER BY category, name") or {}
 end)
 
 lib.callback.register('rsg-mdt:server:getAllIssuedCharges', function(source, searchQuery)
-    if not waitForChargesDatabase() then return {} end
-    
     if not hasCreateRecordsPermission(source) then
         return {}
     end
@@ -708,8 +590,6 @@ lib.callback.register('rsg-mdt:server:getAllIssuedCharges', function(source, sea
 end)
 
 lib.callback.register('rsg-mdt:server:getChargeDetails', function(source, chargeId)
-    if not waitForChargesDatabase() then return nil end
-    
     if not hasCreateRecordsPermission(source) then
         return nil
     end
@@ -778,7 +658,6 @@ lib.callback.register('rsg-mdt:server:getJailConfig', function(source)
 end)
 
 lib.callback.register('rsg-mdt:server:getCitizenJailTotals', function(source, citizenid)
-    if not waitForChargesDatabase() then return { totalJailtime = 0, totalServed = 0, charges = {} } end
     if not citizenid then return { totalJailtime = 0, totalServed = 0, charges = {} } end
     
     local charges = MySQL.query.await(
@@ -809,9 +688,6 @@ end)
 lib.callback.register('rsg-mdt:server:commitCharges', function(source, data)
     if not hasCreateRecordsPermission(source) then
         return { success = false, message = 'You do not have permission to issue charges' }
-    end
-    if not waitForChargesDatabase() then
-        return { success = false, message = 'Database not ready' }
     end
     
     local citizenid = data.citizenid
