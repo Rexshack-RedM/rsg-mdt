@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fetchNui } from '../hooks/useNui';
+import { useConfirmDialog } from '../components/ConfirmDialog';
 import type { CriminalRecord } from '../types';
 
 interface RecordsProps {
@@ -11,6 +12,7 @@ export function Records({ onRefresh }: RecordsProps) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ citizenid: '', name: '', crime: '', description: '', fine: 0, jailtime: 0 });
+  const { confirm, dialog } = useConfirmDialog();
 
   const loadRecords = async () => {
     setLoading(true);
@@ -36,7 +38,8 @@ export function Records({ onRefresh }: RecordsProps) {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this record?')) return;
+    const confirmed = await confirm('Delete Record', 'Are you sure you want to delete this criminal record?');
+    if (!confirmed) return;
     await fetchNui('deleteRecord', { id }, { success: true });
     loadRecords();
     onRefresh?.();
@@ -44,6 +47,7 @@ export function Records({ onRefresh }: RecordsProps) {
 
   return (
     <div className="space-y-6">
+      {dialog}
       <div className="flex justify-between items-center">
         <h2 className="text-white text-2xl font-bold" style={{ fontFamily: 'var(--font-display)' }}>
           Criminal Records

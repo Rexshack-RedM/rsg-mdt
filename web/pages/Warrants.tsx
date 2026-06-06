@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { fetchNui } from '../hooks/useNui';
+import { fetchNui, useNuiEvent } from '../hooks/useNui';
+import { useConfirmDialog } from '../components/ConfirmDialog';
 import type { Warrant } from '../types';
 
 interface WarrantPrefill {
@@ -18,6 +19,7 @@ export function Warrants({ onRefresh, prefill, onClearPrefill }: WarrantsProps) 
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ citizenid: '', name: '', reason: '' });
+  const { confirm, dialog } = useConfirmDialog();
 
   const loadWarrants = async () => {
     setLoading(true);
@@ -58,11 +60,17 @@ export function Warrants({ onRefresh, prefill, onClearPrefill }: WarrantsProps) 
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this warrant?')) return;
-    await fetchNui('deleteWarrant', { id }, { success: true });
-    loadWarrants();
-    onRefresh?.();
+    const confirmed = await confirm('Delete Warrant', 'Are you sure you want to delete this warrant?');
+    if (!confirmed) return;
+    fetchNui('deleteWarrant', { id }, { success: true });
   };
+
+  useNuiEvent<{ success: boolean; id: number }>('warrantDeleted', (data) => {
+    if (data.success) {
+      loadWarrants();
+      onRefresh?.();
+    }
+  });
 
   const statusColors: Record<string, string> = {
     active: 'text-red-400 bg-red-950/50',
@@ -72,6 +80,7 @@ export function Warrants({ onRefresh, prefill, onClearPrefill }: WarrantsProps) 
 
   return (
     <div className="space-y-6">
+      {dialog}
       <div className="flex justify-between items-center">
         <h2 className="text-white text-2xl font-bold" style={{ fontFamily: 'var(--font-display)' }}>
           Warrants

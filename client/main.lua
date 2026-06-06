@@ -5,7 +5,7 @@ local function startNotebookAnimation()
     local ped = PlayerPedId()
     ClearPedTasks(ped, true, true)
     Wait(100)
-    TaskStartScenarioInPlace(ped, joaat('WORLD_HUMAN_WRITE_NOTEBOOK'), -1, true, false, 0, false, 0)
+    Citizen.InvokeNative(0x524B54361229154F, ped, joaat('WORLD_HUMAN_WRITE_NOTEBOOK'), -1, true, false, 0, false, 0)
 end
 
 local function stopNotebookAnimation()
@@ -200,8 +200,13 @@ RegisterNuiCallback('addRecord', function(data, cb)
 end)
 
 RegisterNuiCallback('deleteRecord', function(data, cb)
-    local success = lib.callback.await('rsg-mdt:server:deleteRecord', false, data.id)
-    cb({ success = success })
+    cb('ok')
+    local recordId = data.id
+    SetTimeout(0, function()
+        lib.callback('rsg-mdt:server:deleteRecord', false, function(success)
+            SendNUIMessage(json.encode({ action = 'recordDeleted', data = { success = success, id = recordId } }))
+        end, recordId)
+    end)
 end)
 
 -- Warrants
@@ -221,8 +226,13 @@ RegisterNuiCallback('updateWarrant', function(data, cb)
 end)
 
 RegisterNuiCallback('deleteWarrant', function(data, cb)
-    local success = lib.callback.await('rsg-mdt:server:deleteWarrant', false, data.id)
-    cb({ success = success })
+    cb('ok')
+    local warrantId = data.id
+    SetTimeout(0, function()
+        lib.callback('rsg-mdt:server:deleteWarrant', false, function(success)
+            SendNUIMessage(json.encode({ action = 'warrantDeleted', data = { success = success, id = warrantId } }))
+        end, warrantId)
+    end)
 end)
 
 -- BOLOs
@@ -237,8 +247,13 @@ RegisterNuiCallback('addBolo', function(data, cb)
 end)
 
 RegisterNuiCallback('deleteBolo', function(data, cb)
-    local success = lib.callback.await('rsg-mdt:server:deleteBolo', false, data.id)
-    cb({ success = success })
+    cb('ok')
+    local boloId = data.id
+    SetTimeout(0, function()
+        lib.callback('rsg-mdt:server:deleteBolo', false, function(success)
+            SendNUIMessage(json.encode({ action = 'boloDeleted', data = { success = success, id = boloId } }))
+        end, boloId)
+    end)
 end)
 
 -- Reports
@@ -258,8 +273,13 @@ RegisterNuiCallback('createReport', function(data, cb)
 end)
 
 RegisterNuiCallback('deleteReport', function(data, cb)
-    local success = lib.callback.await('rsg-mdt:server:deleteReport', false, data.id)
-    cb({ success = success })
+    cb('ok')
+    local reportId = data.id
+    SetTimeout(0, function()
+        lib.callback('rsg-mdt:server:deleteReport', false, function(success)
+            SendNUIMessage(json.encode({ action = 'reportDeleted', data = { success = success, id = reportId } }))
+        end, reportId)
+    end)
 end)
 
 RegisterNuiCallback('getReportComments', function(data, cb)
@@ -327,8 +347,13 @@ RegisterNuiCallback('updateRole', function(data, cb)
 end)
 
 RegisterNuiCallback('deleteRole', function(data, cb)
-    local result = lib.callback.await('rsg-mdt:server:deleteRole', false, data.name)
-    cb(result or { success = false, message = locale('notification_unknown_error') })
+    cb('ok')
+    local roleName = data.name
+    SetTimeout(0, function()
+        lib.callback('rsg-mdt:server:deleteRole', false, function(result)
+            SendNUIMessage(json.encode({ action = 'roleDeleted', data = result or { success = false, message = locale('notification_unknown_error'), name = roleName } }))
+        end, roleName)
+    end)
 end)
 
 RegisterNuiCallback('getAuditLogs', function(data, cb)
@@ -411,8 +436,13 @@ RegisterNuiCallback('updateChargeTemplate', function(data, cb)
 end)
 
 RegisterNuiCallback('deleteChargeTemplate', function(data, cb)
-    local result = lib.callback.await('rsg-mdt:server:deleteChargeTemplate', false, data.id)
-    cb(result or { success = false, message = locale('notification_unknown_error') })
+    cb('ok')
+    local templateId = data.id
+    SetTimeout(0, function()
+        lib.callback('rsg-mdt:server:deleteChargeTemplate', false, function(result)
+            SendNUIMessage(json.encode({ action = 'chargeTemplateDeleted', data = result or { success = false, message = locale('notification_unknown_error'), id = templateId } }))
+        end, templateId)
+    end)
 end)
 
 RegisterNuiCallback('issueCharges', function(data, cb)

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { fetchNui } from '../hooks/useNui';
 import { useNuiEvent } from '../hooks/useNui';
+import { useConfirmDialog } from '../components/ConfirmDialog';
 import type { ChargeTemplate, ChargeFormData } from '../types';
 
 const categories = [
@@ -24,6 +25,7 @@ export function AdminChargesManager() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const { confirm, dialog } = useConfirmDialog();
 
   const fetchTemplates = useCallback(async () => {
     const result = await fetchNui<ChargeTemplate[]>('getChargeTemplates', {}, []);
@@ -77,22 +79,20 @@ export function AdminChargesManager() {
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`Delete charge "${name}"? This cannot be undone.`)) return;
+    const confirmed = await confirm('Delete Charge', `Are you sure you want to delete "${name}"? This cannot be undone.`);
+    if (!confirmed) return;
+    fetchNui('deleteChargeTemplate', { id }, { success: true, message: 'Deleted' });
+  };
 
-    const result = await fetchNui<{ success: boolean; message: string }>(
-      'deleteChargeTemplate',
-      { id },
-      { success: true, message: 'Deleted' }
-    );
-
-    if (result.success) {
-      setTemplates(prev => prev.filter(t => t.id !== id));
+  useNuiEvent<{ success: boolean; message: string; id: number }>('chargeTemplateDeleted', (data) => {
+    if (data.success) {
+      setTemplates(prev => prev.filter(t => t.id !== data.id));
       setSuccess('Charge template deleted');
       setTimeout(() => setSuccess(null), 3000);
     } else {
-      setError(result.message || 'Failed to delete');
+      setError(data.message || 'Failed to delete');
     }
-  };
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,6 +129,7 @@ export function AdminChargesManager() {
 
   return (
     <div className="h-full flex flex-col">
+      {dialog}
       <div className="flex items-center justify-between mb-4">
         <div className="flex-1 max-w-md">
           <input

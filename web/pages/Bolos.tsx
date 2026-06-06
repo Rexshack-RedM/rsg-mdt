@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { fetchNui } from '../hooks/useNui';
+import { fetchNui, useNuiEvent } from '../hooks/useNui';
+import { useConfirmDialog } from '../components/ConfirmDialog';
 import type { BOLO } from '../types';
 
 interface BolosProps {
@@ -11,6 +12,7 @@ export function Bolos({ onRefresh }: BolosProps) {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title: '', description: '', lastSeen: '' });
+  const { confirm, dialog } = useConfirmDialog();
 
   const loadBolos = async () => {
     setLoading(true);
@@ -36,14 +38,21 @@ export function Bolos({ onRefresh }: BolosProps) {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this BOLO?')) return;
-    await fetchNui('deleteBolo', { id }, { success: true });
-    loadBolos();
-    onRefresh?.();
+    const confirmed = await confirm('Delete BOLO', 'Are you sure you want to delete this BOLO?');
+    if (!confirmed) return;
+    fetchNui('deleteBolo', { id }, { success: true });
   };
+
+  useNuiEvent<{ success: boolean; id: number }>('boloDeleted', (data) => {
+    if (data.success) {
+      loadBolos();
+      onRefresh?.();
+    }
+  });
 
   return (
     <div className="space-y-6">
+      {dialog}
       <div className="flex justify-between items-center">
         <h2 className="text-white text-2xl font-bold" style={{ fontFamily: 'var(--font-display)' }}>
           BOLOs (Be On Lookout)

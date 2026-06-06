@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { fetchNui } from '../hooks/useNui';
+import { fetchNui, useNuiEvent } from '../hooks/useNui';
+import { useConfirmDialog } from '../components/ConfirmDialog';
 import type { Report, ReportComment, IncidentType } from '../types';
 
 interface ReportsProps {
@@ -19,6 +20,7 @@ export function Reports({ onRefresh, viewingReportId, onViewCharge, onReportView
   const [newComment, setNewComment] = useState('');
   const [incidentTypes, setIncidentTypes] = useState<IncidentType[]>([]);
   const [form, setForm] = useState({ title: '', type: 'incident', description: '', officers: '', suspects: '', evidence: '' });
+  const { confirm, dialog } = useConfirmDialog();
 
   useEffect(() => {
     if (viewingReportId && reports.length > 0) {
@@ -105,11 +107,20 @@ export function Reports({ onRefresh, viewingReportId, onViewCharge, onReportView
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this report?')) return;
-    await fetchNui('deleteReport', { id }, { success: true });
-    loadReports();
-    onRefresh?.();
+    const confirmed = await confirm('Delete Report', 'Are you sure you want to delete this report? This action cannot be undone.');
+    if (!confirmed) return;
+    fetchNui('deleteReport', { id }, { success: true });
   };
+
+  useNuiEvent<{ success: boolean; id: number }>('reportDeleted', (data) => {
+    if (data.success) {
+      if (selectedReport?.id === data.id) {
+        setSelectedReport(null);
+      }
+      loadReports();
+      onRefresh?.();
+    }
+  });
 
   const formatDate = (dateStr: unknown) => {
     if (!dateStr) {
@@ -162,6 +173,7 @@ export function Reports({ onRefresh, viewingReportId, onViewCharge, onReportView
 
   return (
     <div className="space-y-6">
+      {dialog}
       <div className="flex justify-between items-center">
         <h2 className="text-white text-2xl font-bold" style={{ fontFamily: 'var(--font-display)' }}>
           Reports
